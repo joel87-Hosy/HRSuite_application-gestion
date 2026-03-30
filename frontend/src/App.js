@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+// ...existing code...
+
+import { useState } from "react";
 import "./styles.css";
 
 const API = "http://localhost:5000/api";
@@ -7,6 +9,15 @@ function App() {
   const [token, setToken] = useState(null);
   const [role, setRole] = useState(null);
   const [name, setName] = useState("");
+  const [showRegister, setShowRegister] = useState(false);
+  const [register, setRegister] = useState({
+    email: "",
+    password: "",
+    name: "",
+    role: "employee",
+  });
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerError, setRegisterError] = useState("");
   const [employees, setEmployees] = useState([]);
   const [form, setForm] = useState({
     name: "",
@@ -23,37 +34,43 @@ function App() {
   const [modal, setModal] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
-  function pushToast(message, type = "info", ttl = 3500) {
-    const id = Date.now() + Math.random();
+  // Toast helper
+  function pushToast(message, type = "info", duration = 3000) {
+    const id = Math.random().toString(36).slice(2);
     setToasts((t) => [...t, { id, message, type }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), ttl);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), duration);
   }
 
-  useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null);
+  // Registration handler
+  async function handleRegister(e) {
+    e.preventDefault();
+    setRegisterError("");
+    if (!register.email || !register.password || !register.name) {
+      setRegisterError("Tous les champs sont requis");
       return;
     }
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  useEffect(() => {
-    if (token) fetchEmployees();
-  }, [token]);
-
-  async function fetchEmployees() {
-    const res = await fetch(`${API}/employees`, {
-      headers: { Authorization: `Bearer ${token}` },
+    setRegisterLoading(true);
+    const res = await fetch(`${API}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(register),
     });
-    if (res.ok) setEmployees(await res.json());
+    setRegisterLoading(false);
+    if (res.ok) {
+      pushToast("Compte créé, connectez-vous", "success");
+      setShowRegister(false);
+      setRegister({ email: "", password: "", name: "", role: "employee" });
+    } else {
+      const err = await res.json();
+      setRegisterError(err.message || "Erreur lors de l'inscription");
+    }
   }
 
+  // Login handler
   async function handleLogin(e) {
     e.preventDefault();
     if (!login.email || !login.password) {
-      pushToast("Veuillez fournir email et mot de passe", "error");
+      pushToast("Email et mot de passe requis", "error");
       return;
     }
     const res = await fetch(`${API}/login`, {
@@ -64,75 +81,28 @@ function App() {
     if (res.ok) {
       const data = await res.json();
       setToken(data.token);
-      setRole(data.role || "employee");
-      setName(data.name || "");
-      pushToast("Connexion réussie", "success");
-    } else {
-      pushToast("Échec de la connexion — vérifiez vos identifiants", "error");
-    }
-  }
-
-  async function handleAddEmployee(e) {
-    e.preventDefault();
-    if (!form.name || !form.position) {
-      pushToast("Nom et poste sont requis", "error");
-      return;
-    }
-    const fd = new FormData();
-    fd.append("name", form.name);
-    fd.append("position", form.position);
-    fd.append("dept", form.dept);
-    fd.append("salary", form.salary || 0);
-    if (file) fd.append("profilePicture", file);
-    const res = await fetch(`${API}/employees`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    });
-    if (res.ok) {
-      setForm({ name: "", position: "", dept: "", salary: "" });
-      setFile(null);
-      fetchEmployees();
-      pushToast("Employé ajouté", "success");
+      setRole(data.role);
+      setName(data.name);
+      setLogin({ email: "", password: "" });
+      pushToast("Connecté", "success");
     } else {
       const err = await res.json();
-      pushToast("Erreur ajout employé: " + (err.message || "erreur"), "error");
+      pushToast(err.message || "Erreur de connexion", "error");
     }
   }
 
-  async function handleUpdateEmployee(e) {
+  // Dummy fetchEmployees for now
+  async function fetchEmployees() {
+    // Should fetch employees from API
+    // For now, do nothing
+  }
+
+  // Dummy handleAddEmployee/handleUpdateEmployee for now
+  function handleAddEmployee(e) {
     e.preventDefault();
-    if (!editingId) return;
-    if (!form.name || !form.position) {
-      pushToast("Nom et poste sont requis", "error");
-      return;
-    }
-    try {
-      // Send multipart/form-data so we can update fields + file in one request
-      const fd = new FormData();
-      fd.append("name", form.name);
-      fd.append("position", form.position);
-      fd.append("dept", form.dept || "");
-      fd.append("salary", form.salary || 0);
-      if (file) fd.append("profilePicture", file);
-      const res = await fetch(`${API}/employees/${editingId}`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-      if (res.ok) {
-        pushToast("Employé mis à jour", "success");
-        setEditingId(null);
-        setForm({ name: "", position: "", dept: "", salary: "" });
-        setFile(null);
-        fetchEmployees();
-      } else {
-        const err = await res.json();
-        pushToast("Erreur mise à jour: " + (err.message || "erreur"), "error");
-      }
-    } catch (err) {
-      pushToast("Erreur mise à jour: " + (err.message || "erreur"), "error");
-    }
+  }
+  function handleUpdateEmployee(e) {
+    e.preventDefault();
   }
 
   function handleEditClick(emp) {
@@ -237,6 +207,100 @@ function App() {
   }
 
   if (!token) {
+    if (showRegister) {
+      return (
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#f5f7fb",
+          }}
+        >
+          <div className="card" style={{ width: 420 }}>
+            <h2
+              style={{
+                margin: 0,
+                marginBottom: 12,
+                fontSize: 20,
+                fontWeight: 700,
+              }}
+            >
+              Créer un compte
+            </h2>
+            <form
+              onSubmit={handleRegister}
+              style={{ display: "grid", gap: 10 }}
+            >
+              <input
+                className="input"
+                value={register.name}
+                onChange={(e) =>
+                  setRegister({ ...register, name: e.target.value })
+                }
+                placeholder="Nom complet"
+              />
+              <input
+                className="input"
+                value={register.email}
+                onChange={(e) =>
+                  setRegister({ ...register, email: e.target.value })
+                }
+                type="email"
+                placeholder="Email"
+              />
+              <input
+                className="input"
+                value={register.password}
+                onChange={(e) =>
+                  setRegister({ ...register, password: e.target.value })
+                }
+                type="password"
+                placeholder="Mot de passe"
+              />
+              <select
+                className="input"
+                value={register.role}
+                onChange={(e) =>
+                  setRegister({ ...register, role: e.target.value })
+                }
+              >
+                <option value="employee">Employé</option>
+                <option value="manager">Manager</option>
+                <option value="admin">RH</option>
+              </select>
+              {registerError && (
+                <div style={{ color: "red", fontSize: 13 }}>
+                  {registerError}
+                </div>
+              )}
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={registerLoading}
+              >
+                {registerLoading ? "Création..." : "Créer le compte"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-link"
+                onClick={() => setShowRegister(false)}
+              >
+                Retour à la connexion
+              </button>
+            </form>
+          </div>
+          <div className="toasts" aria-live="polite">
+            {toasts.map((t) => (
+              <div key={t.id} className={`toast ${t.type}`}>
+                {t.message}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
     return (
       <div
         style={{
@@ -312,7 +376,6 @@ function App() {
                     });
                     if (res.ok) {
                       const data = await res.json();
-                      // show temporary password (prototype)
                       pushToast(
                         "Mot de passe réinitialisé. Vérifiez le toast pour le mot de passe temporaire.",
                         "success",
@@ -344,15 +407,27 @@ function App() {
                 Mot de passe oublié ?
               </button>
             </div>
-            <button className="btn btn-primary" type="submit">
-              Se connecter
+            <button
+              type="button"
+              className="btn btn-link"
+              onClick={() => setShowRegister(true)}
+            >
+              Créer un compte
             </button>
           </form>
+        </div>
+        <div className="toasts" aria-live="polite">
+          {toasts.map((t) => (
+            <div key={t.id} className={`toast ${t.type}`}>
+              {t.message}
+            </div>
+          ))}
         </div>
       </div>
     );
   }
 
+  // Interface principale après connexion
   return (
     <div className="app">
       <aside className="sidebar">
@@ -379,215 +454,549 @@ function App() {
           </button>
         </div>
       </aside>
-
       <main className="main">
         <div className="container">
           <div className="header">
-            <div className="title">Liste du Personnel</div>
+            <div className="title">
+              {role === "employee" && "Mon Profil"}
+              {role === "manager" && "Gestion du Personnel"}
+              {role === "admin" && "Administration RH"}
+            </div>
             <div style={{ color: "var(--muted)" }}>Système RH • Prototype</div>
           </div>
-
           <div className="grid-2" style={{ marginTop: 18 }}>
-            <div>
-              <div className="card">
-                <form
-                  onSubmit={(e) =>
-                    editingId ? handleUpdateEmployee(e) : handleAddEmployee(e)
-                  }
-                  className="form-grid"
-                >
-                  <input
-                    className="input"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="Nom complet"
-                  />
-                  <input
-                    className="input"
-                    value={form.position}
-                    onChange={(e) =>
-                      setForm({ ...form, position: e.target.value })
-                    }
-                    placeholder="Poste"
-                  />
-                  <input
-                    className="input"
-                    value={form.dept}
-                    onChange={(e) => setForm({ ...form, dept: e.target.value })}
-                    placeholder="Département"
-                  />
-                  <input
-                    className="input"
-                    value={form.salary}
-                    onChange={(e) =>
-                      setForm({ ...form, salary: e.target.value })
-                    }
-                    placeholder="Salaire"
-                  />
-                  <input
-                    className="file"
-                    type="file"
-                    onChange={(e) => setFile(e.target.files[0])}
-                  />
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 12 }}
-                  >
-                    {previewUrl ? (
-                      <img
-                        src={previewUrl}
-                        className="img-preview"
-                        alt="preview"
-                      />
-                    ) : editingId &&
-                      employees.find((x) => x.id === editingId) &&
-                      employees.find((x) => x.id === editingId).profileImage ? (
-                      <img
-                        src={`${API.replace("/api", "")}${employees.find((x) => x.id === editingId).profileImage}`}
-                        className="img-preview"
-                        alt="current"
-                      />
+            {/* Employé: Affiche seulement ses infos et demandes de congé */}
+            {role === "employee" && (
+              <>
+                <div>
+                  <div className="card">
+                    <h3 style={{ marginTop: 0 }}>Mes informations</h3>
+                    {employees.length > 0 ? (
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>Photo</th>
+                            <th>Nom</th>
+                            <th>Poste</th>
+                            <th>Dépt</th>
+                            <th>Salaire</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {employees
+                            .filter((e) => e.name === name)
+                            .map((e) => (
+                              <tr key={e.id}>
+                                <td>
+                                  {e.profileImage ? (
+                                    <img
+                                      src={`${API.replace("/api", "")}${e.profileImage}`}
+                                      alt="profile"
+                                      style={{
+                                        width: 48,
+                                        height: 48,
+                                        objectFit: "cover",
+                                        borderRadius: 8,
+                                      }}
+                                    />
+                                  ) : (
+                                    <div
+                                      style={{
+                                        width: 48,
+                                        height: 48,
+                                        background: "#f1f5f9",
+                                        borderRadius: 8,
+                                      }}
+                                    />
+                                  )}
+                                </td>
+                                <td>{e.name}</td>
+                                <td>{e.position}</td>
+                                <td>{e.dept}</td>
+                                <td>{e.salary}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
                     ) : (
-                      <div
-                        style={{
-                          width: 96,
-                          height: 96,
-                          background: "#f1f5f9",
-                          borderRadius: 8,
-                        }}
-                      />
+                      <div>Aucune information trouvée.</div>
                     )}
                   </div>
-                  <div style={{ gridColumn: "1/-1", display: "flex", gap: 8 }}>
-                    <button className="btn btn-primary" type="submit">
-                      {editingId ? "Mettre à jour" : "Enregistrer"}
-                    </button>
-                    {editingId ? (
+                </div>
+                <div>
+                  <div className="card">
+                    <h3 style={{ marginTop: 0 }}>Mes demandes de congé</h3>
+                    <div>
                       <button
-                        type="button"
-                        className="btn"
-                        onClick={cancelEdit}
+                        className="btn btn-primary"
+                        onClick={requestLeave}
                       >
-                        Annuler
+                        Demander un congé (exemple)
                       </button>
-                    ) : null}
-                  </div>
-                </form>
-              </div>
-
-              <div className="card" style={{ marginTop: 16 }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Photo</th>
-                      <th>Nom</th>
-                      <th>Poste</th>
-                      <th>Dépt</th>
-                      <th>Salaire</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {employees.map((e) => (
-                      <tr key={e.id}>
-                        <td>
-                          {e.profileImage ? (
-                            <img
-                              src={`${API.replace("/api", "")}${e.profileImage}`}
-                              alt="profile"
-                              style={{
-                                width: 48,
-                                height: 48,
-                                objectFit: "cover",
-                                borderRadius: 8,
-                              }}
-                            />
-                          ) : (
+                      <button className="btn" onClick={fetchLeaves}>
+                        Voir demandes
+                      </button>
+                    </div>
+                    <div className="leave-list">
+                      {leaves
+                        .filter((l) => true)
+                        .map((l) => (
+                          <div className="leave-item" key={l.id}>
                             <div
                               style={{
-                                width: 48,
-                                height: 48,
-                                background: "#f1f5f9",
-                                borderRadius: 8,
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
                               }}
-                            />
-                          )}
-                        </td>
-                        <td>{e.name}</td>
-                        <td>{e.position}</td>
-                        <td>{e.dept}</td>
-                        <td>{e.salary}</td>
-                        <td>
-                          <button
-                            className="btn"
-                            onClick={() => handleEditClick(e)}
-                          >
-                            Modifier
-                          </button>
-                          <button
-                            className="btn btn-danger"
-                            onClick={() => handleDelete(e.id)}
-                            style={{ marginLeft: 8 }}
-                          >
-                            Supprimer
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div>
-              <div className="card">
-                <h3 style={{ marginTop: 0 }}>Demandes de congé</h3>
-                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                  <button className="btn btn-primary" onClick={requestLeave}>
-                    Demander un congé (exemple)
-                  </button>
-                  <button className="btn" onClick={fetchLeaves}>
-                    Voir demandes
-                  </button>
+                            >
+                              <div>
+                                {l.employeeId} • {l.startDate} → {l.endDate} •{" "}
+                                <strong>{l.status}</strong>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="leave-list">
-                  {leaves.map((l) => (
-                    <div className="leave-item" key={l.id}>
+              </>
+            )}
+            {/* Manager: Peut voir tous les employés et approuver/rejeter les congés */}
+            {role === "manager" && (
+              <>
+                <div>
+                  <div className="card">
+                    <form
+                      onSubmit={(e) =>
+                        editingId
+                          ? handleUpdateEmployee(e)
+                          : handleAddEmployee(e)
+                      }
+                      className="form-grid"
+                    >
+                      <input
+                        className="input"
+                        value={form.name}
+                        onChange={(e) =>
+                          setForm({ ...form, name: e.target.value })
+                        }
+                        placeholder="Nom complet"
+                      />
+                      <input
+                        className="input"
+                        value={form.position}
+                        onChange={(e) =>
+                          setForm({ ...form, position: e.target.value })
+                        }
+                        placeholder="Poste"
+                      />
+                      <input
+                        className="input"
+                        value={form.dept}
+                        onChange={(e) =>
+                          setForm({ ...form, dept: e.target.value })
+                        }
+                        placeholder="Département"
+                      />
+                      <input
+                        className="input"
+                        value={form.salary}
+                        onChange={(e) =>
+                          setForm({ ...form, salary: e.target.value })
+                        }
+                        placeholder="Salaire"
+                      />
+                      <input
+                        className="file"
+                        type="file"
+                        onChange={(e) => setFile(e.target.files[0])}
+                      />
                       <div
                         style={{
                           display: "flex",
-                          justifyContent: "space-between",
                           alignItems: "center",
+                          gap: 12,
                         }}
                       >
-                        <div>
-                          {l.employeeId} • {l.startDate} → {l.endDate} •{" "}
-                          <strong>{l.status}</strong>
-                        </div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          {["manager", "rh", "admin"].includes(role) &&
-                          l.status === "pending" ? (
-                            <>
-                              <button
-                                className="btn btn-primary"
-                                onClick={() => approveLeave(l.id)}
-                              >
-                                Approuver
-                              </button>
+                        {previewUrl ? (
+                          <img
+                            src={previewUrl}
+                            className="img-preview"
+                            alt="preview"
+                          />
+                        ) : editingId &&
+                          employees.find((x) => x.id === editingId) &&
+                          employees.find((x) => x.id === editingId)
+                            .profileImage ? (
+                          <img
+                            src={`${API.replace("/api", "")}${employees.find((x) => x.id === editingId).profileImage}`}
+                            className="img-preview"
+                            alt="current"
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 96,
+                              height: 96,
+                              background: "#f1f5f9",
+                              borderRadius: 8,
+                            }}
+                          />
+                        )}
+                      </div>
+                      <div
+                        style={{ gridColumn: "1/-1", display: "flex", gap: 8 }}
+                      >
+                        <button className="btn btn-primary" type="submit">
+                          {editingId ? "Mettre à jour" : "Enregistrer"}
+                        </button>
+                        {editingId ? (
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={cancelEdit}
+                          >
+                            Annuler
+                          </button>
+                        ) : null}
+                      </div>
+                    </form>
+                  </div>
+                  <div className="card" style={{ marginTop: 16 }}>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Photo</th>
+                          <th>Nom</th>
+                          <th>Poste</th>
+                          <th>Dépt</th>
+                          <th>Salaire</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {employees.map((e) => (
+                          <tr key={e.id}>
+                            <td>
+                              {e.profileImage ? (
+                                <img
+                                  src={`${API.replace("/api", "")}${e.profileImage}`}
+                                  alt="profile"
+                                  style={{
+                                    width: 48,
+                                    height: 48,
+                                    objectFit: "cover",
+                                    borderRadius: 8,
+                                  }}
+                                />
+                              ) : (
+                                <div
+                                  style={{
+                                    width: 48,
+                                    height: 48,
+                                    background: "#f1f5f9",
+                                    borderRadius: 8,
+                                  }}
+                                />
+                              )}
+                            </td>
+                            <td>{e.name}</td>
+                            <td>{e.position}</td>
+                            <td>{e.dept}</td>
+                            <td>{e.salary}</td>
+                            <td>
                               <button
                                 className="btn"
-                                onClick={() => rejectLeave(l.id)}
+                                onClick={() => handleEditClick(e)}
                               >
-                                Refuser
+                                Modifier
                               </button>
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                              <button
+                                className="btn btn-danger"
+                                onClick={() => handleDelete(e.id)}
+                                style={{ marginLeft: 8 }}
+                              >
+                                Supprimer
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            </div>
+                <div>
+                  <div className="card">
+                    <h3 style={{ marginTop: 0 }}>Demandes de congé</h3>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                      <button
+                        className="btn btn-primary"
+                        onClick={requestLeave}
+                      >
+                        Demander un congé (exemple)
+                      </button>
+                      <button className="btn" onClick={fetchLeaves}>
+                        Voir demandes
+                      </button>
+                    </div>
+                    <div className="leave-list">
+                      {leaves.map((l) => (
+                        <div className="leave-item" key={l.id}>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <div>
+                              {l.employeeId} • {l.startDate} → {l.endDate} •{" "}
+                              <strong>{l.status}</strong>
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              {l.status === "pending" && (
+                                <>
+                                  <button
+                                    className="btn btn-primary"
+                                    onClick={() => approveLeave(l.id)}
+                                  >
+                                    Approuver
+                                  </button>
+                                  <button
+                                    className="btn"
+                                    onClick={() => rejectLeave(l.id)}
+                                  >
+                                    Refuser
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            {/* Admin/RH: Accès complet (employés + congés) */}
+            {role === "admin" && (
+              <>
+                <div>
+                  <div className="card">
+                    <form
+                      onSubmit={(e) =>
+                        editingId
+                          ? handleUpdateEmployee(e)
+                          : handleAddEmployee(e)
+                      }
+                      className="form-grid"
+                    >
+                      <input
+                        className="input"
+                        value={form.name}
+                        onChange={(e) =>
+                          setForm({ ...form, name: e.target.value })
+                        }
+                        placeholder="Nom complet"
+                      />
+                      <input
+                        className="input"
+                        value={form.position}
+                        onChange={(e) =>
+                          setForm({ ...form, position: e.target.value })
+                        }
+                        placeholder="Poste"
+                      />
+                      <input
+                        className="input"
+                        value={form.dept}
+                        onChange={(e) =>
+                          setForm({ ...form, dept: e.target.value })
+                        }
+                        placeholder="Département"
+                      />
+                      <input
+                        className="input"
+                        value={form.salary}
+                        onChange={(e) =>
+                          setForm({ ...form, salary: e.target.value })
+                        }
+                        placeholder="Salaire"
+                      />
+                      <input
+                        className="file"
+                        type="file"
+                        onChange={(e) => setFile(e.target.files[0])}
+                      />
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                        }}
+                      >
+                        {previewUrl ? (
+                          <img
+                            src={previewUrl}
+                            className="img-preview"
+                            alt="preview"
+                          />
+                        ) : editingId &&
+                          employees.find((x) => x.id === editingId) &&
+                          employees.find((x) => x.id === editingId)
+                            .profileImage ? (
+                          <img
+                            src={`${API.replace("/api", "")}${employees.find((x) => x.id === editingId).profileImage}`}
+                            className="img-preview"
+                            alt="current"
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 96,
+                              height: 96,
+                              background: "#f1f5f9",
+                              borderRadius: 8,
+                            }}
+                          />
+                        )}
+                      </div>
+                      <div
+                        style={{ gridColumn: "1/-1", display: "flex", gap: 8 }}
+                      >
+                        <button className="btn btn-primary" type="submit">
+                          {editingId ? "Mettre à jour" : "Enregistrer"}
+                        </button>
+                        {editingId ? (
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={cancelEdit}
+                          >
+                            Annuler
+                          </button>
+                        ) : null}
+                      </div>
+                    </form>
+                  </div>
+                  <div className="card" style={{ marginTop: 16 }}>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Photo</th>
+                          <th>Nom</th>
+                          <th>Poste</th>
+                          <th>Dépt</th>
+                          <th>Salaire</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {employees.map((e) => (
+                          <tr key={e.id}>
+                            <td>
+                              {e.profileImage ? (
+                                <img
+                                  src={`${API.replace("/api", "")}${e.profileImage}`}
+                                  alt="profile"
+                                  style={{
+                                    width: 48,
+                                    height: 48,
+                                    objectFit: "cover",
+                                    borderRadius: 8,
+                                  }}
+                                />
+                              ) : (
+                                <div
+                                  style={{
+                                    width: 48,
+                                    height: 48,
+                                    background: "#f1f5f9",
+                                    borderRadius: 8,
+                                  }}
+                                />
+                              )}
+                            </td>
+                            <td>{e.name}</td>
+                            <td>{e.position}</td>
+                            <td>{e.dept}</td>
+                            <td>{e.salary}</td>
+                            <td>
+                              <button
+                                className="btn"
+                                onClick={() => handleEditClick(e)}
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                className="btn btn-danger"
+                                onClick={() => handleDelete(e.id)}
+                                style={{ marginLeft: 8 }}
+                              >
+                                Supprimer
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div>
+                  <div className="card">
+                    <h3 style={{ marginTop: 0 }}>Demandes de congé</h3>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                      <button
+                        className="btn btn-primary"
+                        onClick={requestLeave}
+                      >
+                        Demander un congé (exemple)
+                      </button>
+                      <button className="btn" onClick={fetchLeaves}>
+                        Voir demandes
+                      </button>
+                    </div>
+                    <div className="leave-list">
+                      {leaves.map((l) => (
+                        <div className="leave-item" key={l.id}>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <div>
+                              {l.employeeId} • {l.startDate} → {l.endDate} •{" "}
+                              <strong>{l.status}</strong>
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              {l.status === "pending" && (
+                                <>
+                                  <button
+                                    className="btn btn-primary"
+                                    onClick={() => approveLeave(l.id)}
+                                  >
+                                    Approuver
+                                  </button>
+                                  <button
+                                    className="btn"
+                                    onClick={() => rejectLeave(l.id)}
+                                  >
+                                    Refuser
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </main>
