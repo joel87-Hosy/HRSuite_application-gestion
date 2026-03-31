@@ -524,6 +524,30 @@ body {
   font-size: 13px;
   color: var(--muted);
 }
+.leave-type-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  margin-bottom: 3px;
+}
+.leave-item-interim {
+  font-size: 12px;
+  color: #6d28d9;
+  background: #f5f3ff;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-top: 3px;
+}
+.leave-interim-title {
+  font-size: 12px !important;
+  color: #6d28d9 !important;
+  margin-bottom: 4px !important;
+}
 .leave-status {
   font-size: 12px;
   font-weight: 700;
@@ -801,7 +825,9 @@ body {
   gap: 10px;
 }
 @media (max-width: 600px) {
-  .form-row-2 { grid-template-columns: 1fr; }
+  .form-row-2 {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Contract tag in table */
@@ -838,7 +864,9 @@ body {
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
-  transition: background 0.18s, color 0.18s;
+  transition:
+    background 0.18s,
+    color 0.18s;
   white-space: nowrap;
 }
 .emp-tab-btn.active {
@@ -868,7 +896,9 @@ body {
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
-  transition: background 0.18s, color 0.18s;
+  transition:
+    background 0.18s,
+    color 0.18s;
 }
 .emp-nav-btn.active,
 .emp-nav-btn:hover {
@@ -879,7 +909,8 @@ body {
 /* ============================================
    Employee stats cards (Accueil tab)
    ============================================ */
-.emp-home {}
+.emp-home {
+}
 .emp-stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -911,11 +942,17 @@ body {
   font-weight: 600;
 }
 @media (max-width: 700px) {
-  .emp-stats-row { grid-template-columns: repeat(2, 1fr); }
+  .emp-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 @media (max-width: 420px) {
-  .emp-stats-row { grid-template-columns: 1fr 1fr; }
-  .emp-stat-value { font-size: 24px; }
+  .emp-stats-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .emp-stat-value {
+    font-size: 24px;
+  }
 }
 
 /* ============================================
@@ -932,7 +969,9 @@ body {
   border-radius: 8px;
   transition: background 0.18s;
 }
-.notif-btn:hover { background: rgba(255,255,255,0.12); }
+.notif-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
 .notif-badge {
   position: absolute;
   top: -2px;
@@ -967,7 +1006,9 @@ body {
   gap: 6px;
   transition: background 0.18s;
 }
-.notif-sidebar-btn:hover { background: rgba(37, 99, 235, 0.25); }
+.notif-sidebar-btn:hover {
+  background: rgba(37, 99, 235, 0.25);
+}
 .notif-badge-inline {
   background: #ef4444;
   color: #fff;
@@ -989,7 +1030,9 @@ body {
   max-height: 480px;
   background: #fff;
   border-radius: 14px;
-  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.18), 0 0 0 1px #eef2f7;
+  box-shadow:
+    0 16px 48px rgba(15, 23, 42, 0.18),
+    0 0 0 1px #eef2f7;
   z-index: 200;
   display: flex;
   flex-direction: column;
@@ -1014,12 +1057,16 @@ body {
   border-bottom: 1px solid #f1f5f9;
   transition: background 0.15s;
 }
-.notif-item:hover { background: #f8fafc; }
+.notif-item:hover {
+  background: #f8fafc;
+}
 .notif-item.unread {
   background: #eff6ff;
   border-left: 3px solid var(--accent);
 }
-.notif-item.unread:hover { background: #dbeafe; }
+.notif-item.unread:hover {
+  background: #dbeafe;
+}
 .notif-msg {
   font-size: 14px;
   color: #0f172a;
@@ -1082,4 +1129,3 @@ body {
   color: var(--muted);
   font-style: italic;
 }
-

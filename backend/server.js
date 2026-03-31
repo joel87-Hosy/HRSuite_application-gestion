@@ -383,9 +383,20 @@ app.delete(
 
 // Leaves workflow
 app.post("/api/leaves", verifyToken, (req, res) => {
-  const { employeeId, startDate, endDate, days, reason, managerId } = req.body;
+  const {
+    employeeId,
+    startDate,
+    endDate,
+    days,
+    reason,
+    managerId,
+    leaveType,
+    interimName,
+    interimFunction,
+    interimEmployeeId,
+  } = req.body;
   const stmt = db.prepare(
-    "INSERT INTO leaves (employeeId, startDate, endDate, days, reason, status, managerId) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO leaves (employeeId, startDate, endDate, days, reason, status, managerId, leaveType, interimName, interimFunction, interimEmployeeId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   stmt.run(
     employeeId,
@@ -395,6 +406,10 @@ app.post("/api/leaves", verifyToken, (req, res) => {
     reason,
     "pending",
     managerId || null,
+    leaveType || null,
+    interimName || null,
+    interimFunction || null,
+    interimEmployeeId || null,
     function (err) {
       if (err) return res.status(500).json({ message: "DB insert error", err });
       db.get("SELECT * FROM leaves WHERE id = ?", [this.lastID], (e, row) =>

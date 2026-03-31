@@ -56,6 +56,12 @@ db.serialize(() => {
   db.run("ALTER TABLE employees ADD COLUMN address TEXT", () => {});
   db.run("ALTER TABLE employees ADD COLUMN gender TEXT", () => {});
 
+  // Leaves extra fields migrations
+  db.run("ALTER TABLE leaves ADD COLUMN leaveType TEXT", () => {});
+  db.run("ALTER TABLE leaves ADD COLUMN interimName TEXT", () => {});
+  db.run("ALTER TABLE leaves ADD COLUMN interimFunction TEXT", () => {});
+  db.run("ALTER TABLE leaves ADD COLUMN interimEmployeeId INTEGER", () => {});
+
   // Contracts table
   db.run(
     `CREATE TABLE IF NOT EXISTS contracts (

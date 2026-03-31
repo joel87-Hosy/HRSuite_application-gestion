@@ -12,6 +12,17 @@ const CONTRACT_TYPES = [
   "Apprentissage",
 ];
 
+const LEAVE_TYPES = [
+  "Congé annuel",
+  "Congé maladie",
+  "Congé de maternité",
+  "Congé de paternité",
+  "Congé sans solde",
+  "Permission exceptionnelle",
+  "Récupération",
+  "Formation",
+];
+
 // Top-level component so React doesn't remount it on every App re-render
 function EmployeeFormFields({
   form,
@@ -243,7 +254,12 @@ function App() {
     startDate: "",
     endDate: "",
     reason: "",
+    leaveType: "",
+    interimName: "",
+    interimFunction: "",
+    interimEmployeeId: "",
   });
+  const [allEmployees, setAllEmployees] = useState([]);
 
   // Employee dashboard
   const [empTab, setEmpTab] = useState("home"); // home | profile | contracts | settings
@@ -327,6 +343,7 @@ function App() {
       if (role === "employee") {
         fetchNotifications();
         fetchContracts();
+        fetchAllEmployees();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -371,6 +388,13 @@ function App() {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) setContracts(await res.json());
+  }
+
+  async function fetchAllEmployees() {
+    const res = await fetch(`${API}/employees`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) setAllEmployees(await res.json());
   }
 
   async function markAllNotifRead() {
@@ -576,6 +600,10 @@ function App() {
       endDate: leaveForm.endDate,
       days,
       reason: leaveForm.reason,
+      leaveType: leaveForm.leaveType || null,
+      interimName: leaveForm.interimName || null,
+      interimFunction: leaveForm.interimFunction || null,
+      interimEmployeeId: leaveForm.interimEmployeeId || null,
     };
     const res = await fetch(`${API}/leaves`, {
       method: "POST",
@@ -586,7 +614,15 @@ function App() {
       body: JSON.stringify(body),
     });
     if (res.ok) {
-      setLeaveForm({ startDate: "", endDate: "", reason: "" });
+      setLeaveForm({
+        startDate: "",
+        endDate: "",
+        reason: "",
+        leaveType: "",
+        interimName: "",
+        interimFunction: "",
+        interimEmployeeId: "",
+      });
       fetchLeaves();
       pushToast("Demande de congé envoyée", "success");
     } else {
@@ -689,9 +725,7 @@ function App() {
                 type="submit"
                 disabled={registerLoading}
               >
-                {registerLoading
-                  ? "Création en cours..."
-                  : "Créer mon compte"}
+                {registerLoading ? "Création en cours..." : "Créer mon compte"}
               </button>
               <button
                 type="button"
@@ -782,11 +816,7 @@ function App() {
                     });
                     if (res.ok) {
                       const data = await res.json();
-                      pushToast(
-                        "Mot de passe réinitialisé.",
-                        "success",
-                        8000,
-                      );
+                      pushToast("Mot de passe réinitialisé.", "success", 8000);
                       setTimeout(
                         () =>
                           alert(
@@ -1055,9 +1085,7 @@ function App() {
                       <div className="emp-stat-value">
                         {leaves.filter((l) => l.status === "approved").length}
                       </div>
-                      <div className="emp-stat-label">
-                        Demandes approuvées
-                      </div>
+                      <div className="emp-stat-label">Demandes approuvées</div>
                     </div>
                     <div className="emp-stat-card">
                       <div className="emp-stat-icon">⏳</div>
@@ -1072,9 +1100,7 @@ function App() {
                       className="profile-not-linked"
                       style={{ marginTop: 16 }}
                     >
-                      <div style={{ fontSize: 36, marginBottom: 8 }}>
-                        ⚠️
-                      </div>
+                      <div style={{ fontSize: 36, marginBottom: 8 }}>⚠️</div>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>
                         Fiche non liée
                       </div>
@@ -1100,16 +1126,39 @@ function App() {
                             marginBottom: 10,
                           }}
                         >
-                          Votre fiche employé doit être liée pour
-                          soumettre une demande.
+                          Votre fiche employé doit être liée pour soumettre une
+                          demande.
                         </div>
                       )}
                       <form onSubmit={requestLeave} className="leave-form">
+                        {/* Type de congé */}
+                        <div>
+                          <label className="form-label">
+                            Type de congé / permission *
+                          </label>
+                          <select
+                            className="input"
+                            value={leaveForm.leaveType}
+                            onChange={(e) =>
+                              setLeaveForm({
+                                ...leaveForm,
+                                leaveType: e.target.value,
+                              })
+                            }
+                            required
+                          >
+                            <option value="">— Sélectionner —</option>
+                            {LEAVE_TYPES.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        {/* Dates */}
                         <div className="leave-form-row">
                           <div>
-                            <label className="form-label">
-                              Date de début
-                            </label>
+                            <label className="form-label">Date de début</label>
                             <input
                               className="input"
                               type="date"
@@ -1139,8 +1188,11 @@ function App() {
                             />
                           </div>
                         </div>
+                        {/* Motif */}
                         <div>
-                          <label className="form-label">Motif</label>
+                          <label className="form-label">
+                            Motif / précisions
+                          </label>
                           <input
                             className="input"
                             value={leaveForm.reason}
@@ -1150,9 +1202,85 @@ function App() {
                                 reason: e.target.value,
                               })
                             }
-                            placeholder="Ex: Congés annuels, Permission..."
+                            placeholder="Ex: Congés annuels, visite médicale..."
                             required
                           />
+                        </div>
+                        {/* Intérimaire */}
+                        <div className="form-section-title leave-interim-title">
+                          🔄 Intérimaire (optionnel)
+                        </div>
+                        <div>
+                          <label className="form-label">
+                            Sélectionner un intérimaire dans la liste
+                          </label>
+                          <select
+                            className="input"
+                            value={leaveForm.interimEmployeeId}
+                            onChange={(e) => {
+                              const chosen = allEmployees.find(
+                                (x) => String(x.id) === e.target.value,
+                              );
+                              setLeaveForm({
+                                ...leaveForm,
+                                interimEmployeeId: e.target.value,
+                                interimName: chosen
+                                  ? chosen.name
+                                  : leaveForm.interimName,
+                                interimFunction: chosen
+                                  ? chosen.position || ""
+                                  : leaveForm.interimFunction,
+                              });
+                            }}
+                          >
+                            <option value="">
+                              — Choisir parmi les employés —
+                            </option>
+                            {allEmployees
+                              .filter((x) => x.id !== employeeRecord?.id)
+                              .map((x) => (
+                                <option key={x.id} value={x.id}>
+                                  {x.name}
+                                  {x.position ? ` — ${x.position}` : ""}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                        <div className="leave-form-row">
+                          <div>
+                            <label className="form-label">
+                              Nom de l&apos;intérimaire
+                            </label>
+                            <input
+                              className="input"
+                              value={leaveForm.interimName}
+                              onChange={(e) =>
+                                setLeaveForm({
+                                  ...leaveForm,
+                                  interimName: e.target.value,
+                                  interimEmployeeId: "",
+                                })
+                              }
+                              placeholder="Prénom Nom"
+                            />
+                          </div>
+                          <div>
+                            <label className="form-label">
+                              Fonction de l&apos;intérimaire
+                            </label>
+                            <input
+                              className="input"
+                              value={leaveForm.interimFunction}
+                              onChange={(e) =>
+                                setLeaveForm({
+                                  ...leaveForm,
+                                  interimFunction: e.target.value,
+                                  interimEmployeeId: "",
+                                })
+                              }
+                              placeholder="Ex: Développeur, Comptable..."
+                            />
+                          </div>
                         </div>
                         <button
                           className="btn btn-primary"
@@ -1179,7 +1307,21 @@ function App() {
                               {l.startDate} → {l.endDate}{" "}
                               <span className="leave-days">({l.days}j)</span>
                             </div>
+                            {l.leaveType && (
+                              <span className="leave-type-badge">
+                                {l.leaveType}
+                              </span>
+                            )}
                             <div className="leave-item-reason">{l.reason}</div>
+                            {(l.interimName || l.interimFunction) && (
+                              <div className="leave-item-interim">
+                                🔄 Intérimaire :{" "}
+                                <strong>{l.interimName}</strong>
+                                {l.interimFunction
+                                  ? ` — ${l.interimFunction}`
+                                  : ""}
+                              </div>
+                            )}
                             <div
                               className={`leave-status leave-status-${l.status}`}
                             >
@@ -1259,9 +1401,7 @@ function App() {
                     </div>
                   ) : (
                     <div className="profile-not-linked">
-                      <div style={{ fontSize: 36, marginBottom: 8 }}>
-                        ⚠️
-                      </div>
+                      <div style={{ fontSize: 36, marginBottom: 8 }}>⚠️</div>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>
                         Fiche non liée
                       </div>
@@ -1328,9 +1468,7 @@ function App() {
                               <div className="card contract-card" key={c.id}>
                                 <div className="contract-type">{c.type}</div>
                                 <div className="contract-dates">
-                                  <span>
-                                    Début : {c.startDate || "—"}
-                                  </span>
+                                  <span>Début : {c.startDate || "—"}</span>
                                   {c.endDate && <span>Fin : {c.endDate}</span>}
                                 </div>
                                 {c.notes && (
@@ -1588,9 +1726,23 @@ function App() {
                               {l.startDate} → {l.endDate}{" "}
                               <span className="leave-days">({l.days}j)</span>
                             </div>
+                            {l.leaveType && (
+                              <span className="leave-type-badge">
+                                {l.leaveType}
+                              </span>
+                            )}
                             <div className="leave-item-reason">
                               {l.reason} — Emp. #{l.employeeId}
                             </div>
+                            {(l.interimName || l.interimFunction) && (
+                              <div className="leave-item-interim">
+                                🔄 Intérimaire :{" "}
+                                <strong>{l.interimName}</strong>
+                                {l.interimFunction
+                                  ? ` — ${l.interimFunction}`
+                                  : ""}
+                              </div>
+                            )}
                           </div>
                           <div style={{ display: "flex", gap: 6 }}>
                             {l.status === "pending" && (
@@ -1757,9 +1909,23 @@ function App() {
                               {l.startDate} → {l.endDate}{" "}
                               <span className="leave-days">({l.days}j)</span>
                             </div>
+                            {l.leaveType && (
+                              <span className="leave-type-badge">
+                                {l.leaveType}
+                              </span>
+                            )}
                             <div className="leave-item-reason">
                               {l.reason} — Emp. #{l.employeeId}
                             </div>
+                            {(l.interimName || l.interimFunction) && (
+                              <div className="leave-item-interim">
+                                🔄 Intérimaire :{" "}
+                                <strong>{l.interimName}</strong>
+                                {l.interimFunction
+                                  ? ` — ${l.interimFunction}`
+                                  : ""}
+                              </div>
+                            )}
                           </div>
                           <div style={{ display: "flex", gap: 6 }}>
                             {l.status === "pending" && (
