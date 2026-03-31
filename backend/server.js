@@ -158,12 +158,19 @@ app.post(
   requireRole(["admin", "rh"]),
   upload.single("profilePicture"),
   (req, res) => {
-    const { name, position, dept, status = "Actif", salary = 0 } = req.body;
+    const {
+      name,
+      position,
+      dept,
+      status = "Actif",
+      salary = 0,
+      email = "",
+    } = req.body;
     const profileImage = req.file
       ? `/uploads/profiles/${req.file.filename}`
       : null;
     const stmt = db.prepare(
-      "INSERT INTO employees (name, position, dept, status, salary, profileImage) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO employees (name, position, dept, status, salary, profileImage, email) VALUES (?, ?, ?, ?, ?, ?, ?)",
     );
     stmt.run(
       name,
@@ -172,16 +179,30 @@ app.post(
       status,
       salary,
       profileImage,
+      email || null,
       function (err) {
         if (err)
           return res.status(500).json({ message: "DB insert error", err });
-        db.get(
-          "SELECT * FROM employees WHERE id = ?",
-          [this.lastID],
-          (e, row) => {
-            res.status(201).json({ message: "Employé ajouté", data: row });
-          },
-        );
+        const newId = this.lastID;
+        // Auto-link to existing user account with the same email
+        if (email) {
+          db.get(
+            "SELECT id FROM users WHERE email = ?",
+            [email],
+            (e2, user) => {
+              if (user) {
+                db.run(
+                  "UPDATE employees SET userId = ? WHERE id = ? AND (userId IS NULL OR userId = 0)",
+                  [user.id, newId],
+                  () => {},
+                );
+              }
+            },
+          );
+        }
+        db.get("SELECT * FROM employees WHERE id = ?", [newId], (e, row) => {
+          res.status(201).json({ message: "Employé ajouté", data: row });
+        });
       },
     );
   },
@@ -219,7 +240,7 @@ app.put(
   (req, res) => {
     const id = req.params.id;
     // fields may come from multipart form or JSON
-    const { name, position, dept, status, salary } = req.body;
+    const { name, position, dept, status, salary, email } = req.body;
     const profileImage = req.file
       ? `/uploads/profiles/${req.file.filename}`
       : null;
@@ -246,6 +267,10 @@ app.put(
       updates.push("salary = ?");
       params.push(salary);
     }
+    if (email !== undefined) {
+      updates.push("email = ?");
+      params.push(email || null);
+    }
     if (profileImage) {
       updates.push("profileImage = ?");
       params.push(profileImage);
@@ -256,6 +281,17 @@ app.put(
     const sql = `UPDATE employees SET ${updates.join(", ")} WHERE id = ?`;
     db.run(sql, params, function (err) {
       if (err) return res.status(500).json({ message: "DB update error", err });
+      // If email was updated, try to link to existing user account
+      if (email) {
+        db.get("SELECT id FROM users WHERE email = ?", [email], (e2, user) => {
+          if (user) {
+            db.run(
+              "UPDATE employees SET userId = ? WHERE id = ? AND (userId IS NULL OR userId = 0)",
+              [user.id, id], () => {},
+            );
+          }
+        });
+      }
       db.get("SELECT * FROM employees WHERE id = ?", [id], (e, row) => {
         if (e) return res.status(500).json({ message: "DB error", e });
         res.json({ message: "Updated", data: row });
