@@ -1,9 +1,16 @@
-// ...existing code...
-
 import { useEffect, useState } from "react";
 import "./styles.css";
 
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+
+const CONTRACT_TYPES = [
+  "CDI",
+  "CDD",
+  "Stage",
+  "IntÃ©rim",
+  "Consultant",
+  "Apprentissage",
+];
 
 function App() {
   const [token, setToken] = useState(null);
@@ -27,6 +34,12 @@ function App() {
     dept: "",
     salary: "",
     email: "",
+    birthDate: "",
+    birthPlace: "",
+    contractType: "",
+    phone: "",
+    address: "",
+    gender: "",
   });
   const [editingId, setEditingId] = useState(null);
   const [file, setFile] = useState(null);
@@ -41,6 +54,22 @@ function App() {
     startDate: "",
     endDate: "",
     reason: "",
+  });
+
+  // Employee dashboard
+  const [empTab, setEmpTab] = useState("home"); // home | profile | contracts | settings
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [contracts, setContracts] = useState([]);
+  const [settingsForm, setSettingsForm] = useState({
+    name: "",
+    phone: "",
+    address: "",
+  });
+  const [pwdForm, setPwdForm] = useState({
+    current: "",
+    next: "",
+    confirm: "",
   });
 
   // Toast helper
@@ -66,7 +95,7 @@ function App() {
     });
     setRegisterLoading(false);
     if (res.ok) {
-      pushToast("Compte créé, connectez-vous", "success");
+      pushToast("Compte crÃ©Ã©, connectez-vous", "success");
       setShowRegister(false);
       setRegister({ email: "", password: "", name: "", role: "employee" });
     } else {
@@ -94,7 +123,7 @@ function App() {
       setName(data.name);
       setEmployeeId(data.employeeId || null);
       setLogin({ email: "", password: "" });
-      pushToast("Connecté", "success");
+      pushToast("ConnectÃ©", "success");
     } else {
       const err = await res.json();
       pushToast(err.message || "Erreur de connexion", "error");
@@ -106,6 +135,10 @@ function App() {
     if (token && role) {
       fetchEmployees();
       fetchLeaves();
+      if (role === "employee") {
+        fetchNotifications();
+        fetchContracts();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, role]);
@@ -120,6 +153,11 @@ function App() {
         const data = await res.json();
         setEmployeeRecord(data);
         setEmployees([data]);
+        setSettingsForm({
+          name: data.name || "",
+          phone: data.phone || "",
+          address: data.address || "",
+        });
       } else {
         setEmployeeRecord(null);
         setEmployees([]);
@@ -132,15 +170,53 @@ function App() {
     }
   }
 
-  // Dummy handleAddEmployee/handleUpdateEmployee for now
+  async function fetchNotifications() {
+    const res = await fetch(`${API}/notifications`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) setNotifications(await res.json());
+  }
+
+  async function fetchContracts() {
+    const res = await fetch(`${API}/contracts/my`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) setContracts(await res.json());
+  }
+
+  async function markAllNotifRead() {
+    await fetch(`${API}/notifications/read-all`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setNotifications((n) => n.map((x) => ({ ...x, isRead: 1 })));
+  }
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  function resetForm() {
+    setForm({
+      name: "",
+      position: "",
+      dept: "",
+      salary: "",
+      email: "",
+      birthDate: "",
+      birthPlace: "",
+      contractType: "",
+      phone: "",
+      address: "",
+      gender: "",
+    });
+    setFile(null);
+    setPreviewUrl(null);
+  }
+
   async function handleAddEmployee(e) {
     e.preventDefault();
     const data = new FormData();
-    data.append("name", form.name);
-    data.append("position", form.position);
-    data.append("dept", form.dept);
-    data.append("salary", form.salary);
-    if (form.email) data.append("email", form.email);
+    Object.entries(form).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") data.append(k, v);
+    });
     if (file) data.append("profilePicture", file);
     const res = await fetch(`${API}/employees`, {
       method: "POST",
@@ -148,9 +224,8 @@ function App() {
       body: data,
     });
     if (res.ok) {
-      pushToast("Employé ajouté", "success");
-      setForm({ name: "", position: "", dept: "", salary: "", email: "" });
-      setFile(null);
+      pushToast("EmployÃ© ajoutÃ©", "success");
+      resetForm();
       fetchEmployees();
     } else {
       const err = await res.json();
@@ -161,11 +236,9 @@ function App() {
   async function handleUpdateEmployee(e) {
     e.preventDefault();
     const data = new FormData();
-    data.append("name", form.name);
-    data.append("position", form.position);
-    data.append("dept", form.dept);
-    data.append("salary", form.salary);
-    if (form.email) data.append("email", form.email);
+    Object.entries(form).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) data.append(k, v);
+    });
     if (file) data.append("profilePicture", file);
     const res = await fetch(`${API}/employees/${editingId}`, {
       method: "PUT",
@@ -173,7 +246,7 @@ function App() {
       body: data,
     });
     if (res.ok) {
-      pushToast("Employé mis à jour", "success");
+      pushToast("EmployÃ© mis Ã  jour", "success");
       cancelEdit();
       fetchEmployees();
     } else {
@@ -188,16 +261,22 @@ function App() {
       name: emp.name || "",
       position: emp.position || "",
       dept: emp.dept || "",
-      salary: emp.salary || 0,
+      salary: emp.salary !== null ? emp.salary : "",
       email: emp.email || "",
+      birthDate: emp.birthDate || "",
+      birthPlace: emp.birthPlace || "",
+      contractType: emp.contractType || "",
+      phone: emp.phone || "",
+      address: emp.address || "",
+      gender: emp.gender || "",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function handleDelete(id) {
     setModal({
-      title: "Supprimer employé",
-      message: "Confirmer la suppression de cet employé ?",
+      title: "Supprimer employÃ©",
+      message: "Confirmer la suppression de cet employÃ© ?",
       async onConfirm() {
         setModal(null);
         const res = await fetch(`${API}/employees/${id}`, {
@@ -205,7 +284,7 @@ function App() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
-          pushToast("Employé supprimé", "success");
+          pushToast("EmployÃ© supprimÃ©", "success");
           fetchEmployees();
         } else {
           const err = await res.json();
@@ -223,8 +302,234 @@ function App() {
 
   function cancelEdit() {
     setEditingId(null);
-    setForm({ name: "", position: "", dept: "", salary: "", email: "" });
-    setFile(null);
+    resetForm();
+  }
+
+  async function handleSaveSettings(e) {
+    e.preventDefault();
+    const res = await fetch(`${API}/profile`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(settingsForm),
+    });
+    if (res.ok) {
+      pushToast("Profil mis Ã  jour", "success");
+      fetchEmployees();
+    } else pushToast("Erreur lors de la mise Ã  jour", "error");
+  }
+
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    if (!pwdForm.current || !pwdForm.next) {
+      pushToast("Remplissez tous les champs", "error");
+      return;
+    }
+    if (pwdForm.next !== pwdForm.confirm) {
+      pushToast("Les mots de passe ne correspondent pas", "error");
+      return;
+    }
+    const res = await fetch(`${API}/change-password`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        currentPassword: pwdForm.current,
+        newPassword: pwdForm.next,
+      }),
+    });
+    if (res.ok) {
+      pushToast("Mot de passe modifiÃ©", "success");
+      setPwdForm({ current: "", next: "", confirm: "" });
+    } else {
+      const err = await res.json();
+      pushToast("Erreur: " + (err.message || "erreur"), "error");
+    }
+  }
+
+  // Shared employee form fields for manager/admin
+  function EmployeeFormFields() {
+    return (
+      <>
+        <div className="form-section-title">Informations gÃ©nÃ©rales</div>
+        <div className="form-row-2">
+          <div>
+            <label className="form-label">Nom complet *</label>
+            <input
+              className="input"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="PrÃ©nom Nom"
+              required
+            />
+          </div>
+          <div>
+            <label className="form-label">Email professionnel</label>
+            <input
+              className="input"
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              placeholder="email@entreprise.com"
+            />
+          </div>
+        </div>
+        <div className="form-row-2">
+          <div>
+            <label className="form-label">Poste *</label>
+            <input
+              className="input"
+              value={form.position}
+              onChange={(e) => setForm({ ...form, position: e.target.value })}
+              placeholder="Ex: DÃ©veloppeur"
+              required
+            />
+          </div>
+          <div>
+            <label className="form-label">DÃ©partement</label>
+            <input
+              className="input"
+              value={form.dept}
+              onChange={(e) => setForm({ ...form, dept: e.target.value })}
+              placeholder="Ex: Informatique"
+            />
+          </div>
+        </div>
+        <div className="form-row-2">
+          <div>
+            <label className="form-label">Salaire (FCFA)</label>
+            <input
+              className="input"
+              value={form.salary}
+              onChange={(e) => setForm({ ...form, salary: e.target.value })}
+              placeholder="Ex: 500000"
+            />
+          </div>
+          <div>
+            <label className="form-label">Type de contrat</label>
+            <select
+              className="input"
+              value={form.contractType}
+              onChange={(e) =>
+                setForm({ ...form, contractType: e.target.value })
+              }
+            >
+              <option value="">â€” SÃ©lectionner â€”</option>
+              {CONTRACT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="form-section-title" style={{ marginTop: 16 }}>
+          Informations personnelles
+        </div>
+        <div className="form-row-2">
+          <div>
+            <label className="form-label">Sexe</label>
+            <select
+              className="input"
+              value={form.gender}
+              onChange={(e) => setForm({ ...form, gender: e.target.value })}
+            >
+              <option value="">â€” SÃ©lectionner â€”</option>
+              <option value="Masculin">Masculin</option>
+              <option value="FÃ©minin">FÃ©minin</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">TÃ©lÃ©phone</label>
+            <input
+              className="input"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              placeholder="Ex: +225 07 07 07 07"
+            />
+          </div>
+        </div>
+        <div className="form-row-2">
+          <div>
+            <label className="form-label">Date de naissance</label>
+            <input
+              className="input"
+              type="date"
+              value={form.birthDate}
+              onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="form-label">Lieu de naissance</label>
+            <input
+              className="input"
+              value={form.birthPlace}
+              onChange={(e) => setForm({ ...form, birthPlace: e.target.value })}
+              placeholder="Ex: Abidjan"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="form-label">Lieu d&apos;habitation</label>
+          <input
+            className="input"
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+            placeholder="Ex: Cocody, Abidjan"
+          />
+        </div>
+        <div className="form-section-title" style={{ marginTop: 16 }}>
+          Photo de profil
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <input
+            className="file"
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const f = e.target.files[0];
+              setFile(f);
+              if (f) setPreviewUrl(URL.createObjectURL(f));
+            }}
+          />
+          {previewUrl ? (
+            <img src={previewUrl} className="img-preview" alt="preview" />
+          ) : editingId &&
+            employees.find((x) => x.id === editingId)?.profileImage ? (
+            <img
+              src={`${API.replace("/api", "")}${employees.find((x) => x.id === editingId).profileImage}`}
+              className="img-preview"
+              alt="current"
+            />
+          ) : (
+            <div
+              style={{
+                width: 96,
+                height: 96,
+                background: "#f1f5f9",
+                borderRadius: 8,
+              }}
+            />
+          )}
+        </div>
+        <div
+          style={{ gridColumn: "1/-1", display: "flex", gap: 8, marginTop: 8 }}
+        >
+          <button className="btn btn-primary" type="submit">
+            {editingId ? "Mettre Ã  jour" : "Enregistrer"}
+          </button>
+          {editingId && (
+            <button type="button" className="btn" onClick={cancelEdit}>
+              Annuler
+            </button>
+          )}
+        </div>
+      </>
+    );
   }
 
   async function fetchLeaves() {
@@ -251,7 +556,7 @@ function App() {
     const empId = employeeRecord ? employeeRecord.id : employeeId;
     if (!empId) {
       pushToast(
-        "Aucune fiche employé liée à votre compte. Contactez le RH.",
+        "Aucune fiche employÃ© liÃ©e Ã  votre compte. Contactez le RH.",
         "error",
         5000,
       );
@@ -275,9 +580,9 @@ function App() {
     if (res.ok) {
       setLeaveForm({ startDate: "", endDate: "", reason: "" });
       fetchLeaves();
-      pushToast("Demande de congé envoyée", "success");
+      pushToast("Demande de congÃ© envoyÃ©e", "success");
     } else {
-      pushToast("Erreur lors de la demande de congé", "error");
+      pushToast("Erreur lors de la demande de congÃ©", "error");
     }
   }
 
@@ -287,7 +592,7 @@ function App() {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
-      pushToast("Demande approuvée", "success");
+      pushToast("Demande approuvÃ©e", "success");
       fetchLeaves();
     } else {
       const err = await res.json();
@@ -301,7 +606,7 @@ function App() {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
-      pushToast("Demande rejetée", "success");
+      pushToast("Demande rejetÃ©e", "success");
       fetchLeaves();
     } else {
       const err = await res.json();
@@ -327,8 +632,8 @@ function App() {
               </svg>
               <span className="auth-logo-text">HRSuite</span>
             </div>
-            <h2 className="auth-title">Créer un compte</h2>
-            <p className="auth-subtitle">Rejoignez votre équipe RH</p>
+            <h2 className="auth-title">CrÃ©er un compte</h2>
+            <p className="auth-subtitle">Rejoignez votre Ã©quipe RH</p>
             <form onSubmit={handleRegister} className="auth-form">
               <div className="auth-field">
                 <label className="auth-label">Nom complet</label>
@@ -364,7 +669,7 @@ function App() {
                     setRegister({ ...register, password: e.target.value })
                   }
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   autoComplete="new-password"
                 />
               </div>
@@ -376,14 +681,16 @@ function App() {
                 type="submit"
                 disabled={registerLoading}
               >
-                {registerLoading ? "Création en cours..." : "Créer mon compte"}
+                {registerLoading
+                  ? "CrÃ©ation en cours..."
+                  : "CrÃ©er mon compte"}
               </button>
               <button
                 type="button"
                 className="auth-link"
                 onClick={() => setShowRegister(false)}
               >
-                Déjà un compte ? <strong>Se connecter</strong>
+                DÃ©jÃ  un compte ? <strong>Se connecter</strong>
               </button>
             </form>
           </div>
@@ -413,8 +720,8 @@ function App() {
             </svg>
             <span className="auth-logo-text">HRSuite</span>
           </div>
-          <h2 className="auth-title">Bienvenue 👋</h2>
-          <p className="auth-subtitle">Connectez-vous à votre espace RH</p>
+          <h2 className="auth-title">Bienvenue ðŸ‘‹</h2>
+          <p className="auth-subtitle">Connectez-vous Ã  votre espace RH</p>
           <form onSubmit={handleLogin} className="auth-form">
             <div className="auth-field">
               <label className="auth-label">Adresse email</label>
@@ -437,7 +744,7 @@ function App() {
                     setLogin({ ...login, password: e.target.value })
                   }
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   autoComplete="current-password"
                 />
                 <button
@@ -446,7 +753,7 @@ function App() {
                   onClick={() => setShowPassword((s) => !s)}
                   aria-label="Afficher/masquer le mot de passe"
                 >
-                  {showPassword ? "🙈" : "👁️"}
+                  {showPassword ? "ðŸ™ˆ" : "ðŸ‘ï¸"}
                 </button>
               </div>
             </div>
@@ -456,7 +763,7 @@ function App() {
                 className="auth-link-sm"
                 onClick={async () => {
                   const email = window.prompt(
-                    "Entrez votre email pour réinitialiser le mot de passe",
+                    "Entrez votre email pour rÃ©initialiser le mot de passe",
                   );
                   if (!email) return;
                   try {
@@ -467,12 +774,16 @@ function App() {
                     });
                     if (res.ok) {
                       const data = await res.json();
-                      pushToast("Mot de passe réinitialisé.", "success", 8000);
+                      pushToast(
+                        "Mot de passe rÃ©initialisÃ©.",
+                        "success",
+                        8000,
+                      );
                       setTimeout(
                         () =>
                           alert(
                             "Mot de passe temporaire: " +
-                              (data.tempPassword || "—"),
+                              (data.tempPassword || "â€”"),
                           ),
                         50,
                       );
@@ -484,11 +795,11 @@ function App() {
                       );
                     }
                   } catch (e) {
-                    pushToast("Erreur réseau", "error");
+                    pushToast("Erreur rÃ©seau", "error");
                   }
                 }}
               >
-                Mot de passe oublié ?
+                Mot de passe oubliÃ© ?
               </button>
             </div>
             <button className="auth-btn" type="submit">
@@ -499,7 +810,7 @@ function App() {
               className="auth-link"
               onClick={() => setShowRegister(true)}
             >
-              Pas encore de compte ? <strong>Créer un compte</strong>
+              Pas encore de compte ? <strong>CrÃ©er un compte</strong>
             </button>
           </form>
         </div>
@@ -514,30 +825,82 @@ function App() {
     );
   }
 
-  // Interface principale après connexion
+  // â”€â”€ Main app â”€â”€
   return (
     <div className="app">
-      {/* Barre mobile avec hamburger */}
+      {/* Mobile topbar */}
       <div className="mobile-topbar">
         <div className="brand">HRSuite</div>
-        <button
-          className="hamburger"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Menu"
-        >
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {role === "employee" && (
+            <button
+              className="notif-btn"
+              onClick={() => {
+                setNotifOpen((o) => !o);
+                if (!notifOpen) fetchNotifications();
+              }}
+              aria-label="Notifications"
+            >
+              ðŸ””
+              {unreadCount > 0 && (
+                <span className="notif-badge">{unreadCount}</span>
+              )}
+            </button>
+          )}
+          <button
+            className="hamburger"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Menu"
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+        </div>
       </div>
-      {/* Overlay fond quand menu ouvert */}
       {menuOpen && (
         <div className="menu-overlay" onClick={() => setMenuOpen(false)} />
       )}
       <aside className={`sidebar${menuOpen ? " sidebar-open" : ""}`}>
         <div className="brand">HRSuite</div>
-        <div className="user">Connecté: {name || "utilisateur"}</div>
+        <div className="user">ConnectÃ©: {name || "utilisateur"}</div>
+        {role === "employee" && (
+          <nav className="emp-nav">
+            {[
+              { id: "home", label: "ðŸ  Accueil" },
+              { id: "profile", label: "ðŸ‘¤ Mon Profil" },
+              { id: "contracts", label: "ðŸ“„ Mes Contrats" },
+              { id: "settings", label: "âš™ï¸ ParamÃ¨tres" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                className={`emp-nav-btn${empTab === tab.id ? " active" : ""}`}
+                onClick={() => {
+                  setEmpTab(tab.id);
+                  setMenuOpen(false);
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        )}
         <div className="side-actions">
+          {role === "employee" && (
+            <button
+              className="notif-sidebar-btn"
+              onClick={() => {
+                setNotifOpen((o) => !o);
+                fetchNotifications();
+                setMenuOpen(false);
+              }}
+            >
+              ðŸ”” Notifications{" "}
+              {unreadCount > 0 && (
+                <span className="notif-badge-inline">{unreadCount}</span>
+              )}
+            </button>
+          )}
           <button
             className="btn btn-ghost"
             onClick={() => {
@@ -546,7 +909,7 @@ function App() {
               setMenuOpen(false);
             }}
           >
-            Rafraîchir
+            RafraÃ®chir
           </button>
           <button
             className="btn btn-danger"
@@ -556,665 +919,847 @@ function App() {
               setMenuOpen(false);
             }}
           >
-            Déconnexion
+            DÃ©connexion
           </button>
         </div>
       </aside>
+      {/* Notification panel */}
+      {notifOpen && (
+        <div className="notif-panel">
+          <div className="notif-panel-header">
+            <span>Notifications</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              {unreadCount > 0 && (
+                <button
+                  className="btn"
+                  style={{ fontSize: 12, padding: "2px 8px" }}
+                  onClick={markAllNotifRead}
+                >
+                  Tout lire
+                </button>
+              )}
+              <button
+                className="btn"
+                style={{ fontSize: 12, padding: "2px 8px" }}
+                onClick={() => setNotifOpen(false)}
+              >
+                âœ•
+              </button>
+            </div>
+          </div>
+          {notifications.length === 0 ? (
+            <div className="notif-empty">Aucune notification</div>
+          ) : (
+            <div className="notif-list">
+              {notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={`notif-item${n.isRead ? "" : " unread"}`}
+                >
+                  <div className="notif-msg">{n.message}</div>
+                  <div className="notif-date">
+                    {n.createdAt
+                      ? new Date(n.createdAt).toLocaleDateString("fr-FR")
+                      : ""}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <main className="main">
         <div className="container">
           <div className="header">
             <div className="title">
-              {role === "employee" && "Mon Profil"}
+              {role === "employee" &&
+                (empTab === "home"
+                  ? "Tableau de bord"
+                  : empTab === "profile"
+                    ? "Mon Profil"
+                    : empTab === "contracts"
+                      ? "Mes Contrats"
+                      : "ParamÃ¨tres")}
               {role === "manager" && "Gestion du Personnel"}
               {role === "admin" && "Administration RH"}
             </div>
-            <div style={{ color: "var(--muted)" }}>Système RH • Prototype</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {role === "employee" && (
+                <button
+                  className="notif-btn"
+                  style={{ display: "none" }}
+                  onClick={() => {
+                    setNotifOpen((o) => !o);
+                    fetchNotifications();
+                  }}
+                >
+                  ðŸ””
+                  {unreadCount > 0 && (
+                    <span className="notif-badge">{unreadCount}</span>
+                  )}
+                </button>
+              )}
+              <div style={{ color: "var(--muted)" }}>SystÃ¨me RH</div>
+            </div>
           </div>
-          <div className="grid-2" style={{ marginTop: 18 }}>
-            {/* Employé: Affiche seulement ses infos et demandes de congé */}
-            {role === "employee" && (
-              <>
-                <div>
-                  <div className="card">
-                    <h3 style={{ marginTop: 0 }}>Ma fiche employé</h3>
-                    {employeeRecord ? (
-                      <div className="employee-profile">
-                        <div className="employee-profile-photo">
-                          {employeeRecord.profileImage ? (
-                            <img
-                              src={`${API.replace("/api", "")}${employeeRecord.profileImage}`}
-                              alt="profile"
-                              className="profile-photo"
-                            />
-                          ) : (
-                            <div className="profile-photo-placeholder">
-                              {employeeRecord.name
-                                ? employeeRecord.name[0].toUpperCase()
-                                : "?"}
-                            </div>
-                          )}
-                        </div>
-                        <div className="employee-profile-info">
-                          <div className="profile-name">
-                            {employeeRecord.name}
-                          </div>
-                          <div className="profile-badge">
-                            {employeeRecord.position}
-                          </div>
-                          <div className="profile-fields">
-                            <div className="profile-field">
-                              <span className="profile-field-label">
-                                Département
-                              </span>
-                              <span className="profile-field-value">
-                                {employeeRecord.dept || "—"}
-                              </span>
-                            </div>
-                            <div className="profile-field">
-                              <span className="profile-field-label">
-                                Statut
-                              </span>
-                              <span className="profile-field-value profile-status">
-                                {employeeRecord.status || "Actif"}
-                              </span>
-                            </div>
-                            <div className="profile-field">
-                              <span className="profile-field-label">
-                                Salaire
-                              </span>
-                              <span className="profile-field-value">
-                                {employeeRecord.salary != null &&
-                                employeeRecord.salary !== ""
-                                  ? `${Number(employeeRecord.salary).toLocaleString("fr-FR")} FCFA`
-                                  : "—"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+
+          {/* â•â•â•â• EMPLOYEE DASHBOARD â•â•â•â• */}
+          {role === "employee" && (
+            <>
+              {/* Desktop tab bar */}
+              <div className="emp-tab-bar">
+                {[
+                  { id: "home", label: "ðŸ  Accueil" },
+                  { id: "profile", label: "ðŸ‘¤ Mon Profil" },
+                  { id: "contracts", label: "ðŸ“„ Mes Contrats" },
+                  { id: "settings", label: "âš™ï¸ ParamÃ¨tres" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={`emp-tab-btn${empTab === tab.id ? " active" : ""}`}
+                    onClick={() => setEmpTab(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* â”€â”€ HOME TAB â”€â”€ */}
+              {empTab === "home" && (
+                <div className="emp-home">
+                  <div className="emp-stats-row">
+                    <div className="emp-stat-card">
+                      <div className="emp-stat-icon">ðŸ–ï¸</div>
+                      <div className="emp-stat-value">52</div>
+                      <div className="emp-stat-label">
+                        Jours congÃ© autorisÃ©s
                       </div>
-                    ) : (
-                      <div className="profile-not-linked">
-                        <div style={{ fontSize: 36, marginBottom: 8 }}>⚠️</div>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                          Fiche non liée
-                        </div>
-                        <div style={{ color: "var(--muted)", fontSize: 14 }}>
-                          Votre compte n&apos;est pas encore lié à une fiche
-                          employé.
-                          <br />
-                          Contactez le service RH en leur donnant votre adresse
-                          email.
-                        </div>
+                    </div>
+                    <div className="emp-stat-card">
+                      <div className="emp-stat-icon">ðŸ“‹</div>
+                      <div className="emp-stat-value">10</div>
+                      <div className="emp-stat-label">
+                        Permissions autorisÃ©es
                       </div>
-                    )}
+                    </div>
+                    <div className="emp-stat-card">
+                      <div className="emp-stat-icon">âœ…</div>
+                      <div className="emp-stat-value">
+                        {leaves.filter((l) => l.status === "approved").length}
+                      </div>
+                      <div className="emp-stat-label">Demandes approuvÃ©es</div>
+                    </div>
+                    <div className="emp-stat-card">
+                      <div className="emp-stat-icon">â³</div>
+                      <div className="emp-stat-value">
+                        {leaves.filter((l) => l.status === "pending").length}
+                      </div>
+                      <div className="emp-stat-label">En attente</div>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="card">
-                    <h3 style={{ marginTop: 0 }}>
-                      Demande de congé / permission
-                    </h3>
-                    {!employeeRecord && (
-                      <div
-                        style={{
-                          color: "var(--danger)",
-                          fontSize: 14,
-                          marginBottom: 10,
-                        }}
-                      >
-                        Votre fiche employé doit être liée pour soumettre une
-                        demande.
+                  {!employeeRecord && (
+                    <div
+                      className="profile-not-linked"
+                      style={{ marginTop: 16 }}
+                    >
+                      <div style={{ fontSize: 36, marginBottom: 8 }}>âš ï¸</div>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        Fiche non liÃ©e
                       </div>
-                    )}
-                    <form onSubmit={requestLeave} className="leave-form">
-                      <div className="leave-form-row">
-                        <div>
-                          <label className="form-label">Date de début</label>
-                          <input
-                            className="input"
-                            type="date"
-                            value={leaveForm.startDate}
-                            onChange={(e) =>
-                              setLeaveForm({
-                                ...leaveForm,
-                                startDate: e.target.value,
-                              })
-                            }
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="form-label">Date de fin</label>
-                          <input
-                            className="input"
-                            type="date"
-                            value={leaveForm.endDate}
-                            onChange={(e) =>
-                              setLeaveForm({
-                                ...leaveForm,
-                                endDate: e.target.value,
-                              })
-                            }
-                            required
-                          />
-                        </div>
+                      <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                        Votre compte n&apos;est pas encore liÃ© Ã  une fiche
+                        employÃ©.
+                        <br />
+                        Contactez le service RH en leur donnant votre adresse
+                        email.
                       </div>
-                      <div>
-                        <label className="form-label">Motif</label>
-                        <input
-                          className="input"
-                          value={leaveForm.reason}
-                          onChange={(e) =>
-                            setLeaveForm({
-                              ...leaveForm,
-                              reason: e.target.value,
-                            })
-                          }
-                          placeholder="Ex: Congés annuels, Permission..."
-                          required
-                        />
-                      </div>
-                      <button
-                        className="btn btn-primary"
-                        type="submit"
-                        disabled={!employeeRecord}
-                      >
-                        Envoyer la demande
-                      </button>
-                    </form>
-                    <h4 style={{ marginTop: 20, marginBottom: 8 }}>
-                      Historique de mes demandes
-                    </h4>
-                    <div className="leave-list">
-                      {leaves.length === 0 && (
-                        <div style={{ color: "var(--muted)", fontSize: 14 }}>
-                          Aucune demande pour l&apos;instant.
+                    </div>
+                  )}
+                  <div className="grid-2" style={{ marginTop: 16 }}>
+                    <div className="card">
+                      <h3 style={{ marginTop: 0 }}>
+                        Demande de congÃ© / permission
+                      </h3>
+                      {!employeeRecord && (
+                        <div
+                          style={{
+                            color: "var(--danger)",
+                            fontSize: 14,
+                            marginBottom: 10,
+                          }}
+                        >
+                          Votre fiche employÃ© doit Ãªtre liÃ©e pour soumettre
+                          une demande.
                         </div>
                       )}
-                      {leaves.map((l) => (
-                        <div className="leave-item" key={l.id}>
-                          <div className="leave-item-dates">
-                            {l.startDate} → {l.endDate}{" "}
-                            <span className="leave-days">({l.days}j)</span>
+                      <form onSubmit={requestLeave} className="leave-form">
+                        <div className="leave-form-row">
+                          <div>
+                            <label className="form-label">Date de dÃ©but</label>
+                            <input
+                              className="input"
+                              type="date"
+                              value={leaveForm.startDate}
+                              onChange={(e) =>
+                                setLeaveForm({
+                                  ...leaveForm,
+                                  startDate: e.target.value,
+                                })
+                              }
+                              required
+                            />
                           </div>
-                          <div className="leave-item-reason">{l.reason}</div>
-                          <div
-                            className={`leave-status leave-status-${l.status}`}
-                          >
-                            {l.status === "pending" && "⏳ En attente"}
-                            {l.status === "approved" && "✅ Approuvé"}
-                            {l.status === "rejected" && "❌ Refusé"}
+                          <div>
+                            <label className="form-label">Date de fin</label>
+                            <input
+                              className="input"
+                              type="date"
+                              value={leaveForm.endDate}
+                              onChange={(e) =>
+                                setLeaveForm({
+                                  ...leaveForm,
+                                  endDate: e.target.value,
+                                })
+                              }
+                              required
+                            />
                           </div>
                         </div>
-                      ))}
+                        <div>
+                          <label className="form-label">Motif</label>
+                          <input
+                            className="input"
+                            value={leaveForm.reason}
+                            onChange={(e) =>
+                              setLeaveForm({
+                                ...leaveForm,
+                                reason: e.target.value,
+                              })
+                            }
+                            placeholder="Ex: CongÃ©s annuels, Permission..."
+                            required
+                          />
+                        </div>
+                        <button
+                          className="btn btn-primary"
+                          type="submit"
+                          disabled={!employeeRecord}
+                        >
+                          Envoyer la demande
+                        </button>
+                      </form>
+                    </div>
+                    <div className="card">
+                      <h4 style={{ marginTop: 0 }}>
+                        Historique de mes demandes
+                      </h4>
+                      <div className="leave-list">
+                        {leaves.length === 0 && (
+                          <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                            Aucune demande pour l&apos;instant.
+                          </div>
+                        )}
+                        {leaves.map((l) => (
+                          <div className="leave-item" key={l.id}>
+                            <div className="leave-item-dates">
+                              {l.startDate} â†’ {l.endDate}{" "}
+                              <span className="leave-days">({l.days}j)</span>
+                            </div>
+                            <div className="leave-item-reason">{l.reason}</div>
+                            <div
+                              className={`leave-status leave-status-${l.status}`}
+                            >
+                              {l.status === "pending" && "â³ En attente"}
+                              {l.status === "approved" && "âœ… ApprouvÃ©"}
+                              {l.status === "rejected" && "âŒ RefusÃ©"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </>
-            )}
-            {/* Manager: Peut voir tous les employés et approuver/rejeter les congés */}
-            {role === "manager" && (
-              <>
-                <div>
-                  <div className="card">
-                    <form
-                      onSubmit={(e) =>
-                        editingId
-                          ? handleUpdateEmployee(e)
-                          : handleAddEmployee(e)
-                      }
-                      className="form-grid"
-                    >
-                      <input
-                        className="input"
-                        value={form.name}
-                        onChange={(e) =>
-                          setForm({ ...form, name: e.target.value })
-                        }
-                        placeholder="Nom complet"
-                      />
-                      <input
-                        className="input"
-                        value={form.position}
-                        onChange={(e) =>
-                          setForm({ ...form, position: e.target.value })
-                        }
-                        placeholder="Poste"
-                      />
-                      <input
-                        className="input"
-                        value={form.dept}
-                        onChange={(e) =>
-                          setForm({ ...form, dept: e.target.value })
-                        }
-                        placeholder="Département"
-                      />
-                      <input
-                        className="input"
-                        value={form.salary}
-                        onChange={(e) =>
-                          setForm({ ...form, salary: e.target.value })
-                        }
-                        placeholder="Salaire"
-                      />
-                      <input
-                        className="input"
-                        type="email"
-                        value={form.email}
-                        onChange={(e) =>
-                          setForm({ ...form, email: e.target.value })
-                        }
-                        placeholder="Email professionnel"
-                      />
-                      <input
-                        className="file"
-                        type="file"
-                        onChange={(e) => setFile(e.target.files[0])}
-                      />
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
-                        }}
-                      >
-                        {previewUrl ? (
+              )}
+
+              {/* â”€â”€ PROFILE TAB â”€â”€ */}
+              {empTab === "profile" && (
+                <div className="card" style={{ marginTop: 16 }}>
+                  {employeeRecord ? (
+                    <div className="employee-profile">
+                      <div className="employee-profile-photo">
+                        {employeeRecord.profileImage ? (
                           <img
-                            src={previewUrl}
-                            className="img-preview"
-                            alt="preview"
-                          />
-                        ) : editingId &&
-                          employees.find((x) => x.id === editingId) &&
-                          employees.find((x) => x.id === editingId)
-                            .profileImage ? (
-                          <img
-                            src={`${API.replace("/api", "")}${employees.find((x) => x.id === editingId).profileImage}`}
-                            className="img-preview"
-                            alt="current"
+                            src={`${API.replace("/api", "")}${employeeRecord.profileImage}`}
+                            alt="profile"
+                            className="profile-photo"
                           />
                         ) : (
-                          <div
-                            style={{
-                              width: 96,
-                              height: 96,
-                              background: "#f1f5f9",
-                              borderRadius: 8,
-                            }}
-                          />
+                          <div className="profile-photo-placeholder">
+                            {employeeRecord.name
+                              ? employeeRecord.name[0].toUpperCase()
+                              : "?"}
+                          </div>
                         )}
                       </div>
-                      <div
-                        style={{ gridColumn: "1/-1", display: "flex", gap: 8 }}
-                      >
-                        <button className="btn btn-primary" type="submit">
-                          {editingId ? "Mettre à jour" : "Enregistrer"}
-                        </button>
-                        {editingId ? (
-                          <button
-                            type="button"
-                            className="btn"
-                            onClick={cancelEdit}
-                          >
-                            Annuler
-                          </button>
-                        ) : null}
-                      </div>
-                    </form>
-                  </div>
-                  <div className="card" style={{ marginTop: 16 }}>
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Photo</th>
-                          <th>Nom</th>
-                          <th>Poste</th>
-                          <th>Dépt</th>
-                          <th>Salaire</th>
-                          <th>Email</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {employees.map((e) => (
-                          <tr key={e.id}>
-                            <td>
-                              {e.profileImage ? (
-                                <img
-                                  src={`${API.replace("/api", "")}${e.profileImage}`}
-                                  alt="profile"
-                                  style={{
-                                    width: 48,
-                                    height: 48,
-                                    objectFit: "cover",
-                                    borderRadius: 8,
-                                  }}
-                                />
-                              ) : (
-                                <div
-                                  style={{
-                                    width: 48,
-                                    height: 48,
-                                    background: "#f1f5f9",
-                                    borderRadius: 8,
-                                  }}
-                                />
-                              )}
-                            </td>
-                            <td>{e.name}</td>
-                            <td>{e.position}</td>
-                            <td>{e.dept}</td>
-                            <td>{e.salary}</td>
-                            <td style={{ fontSize: 12, color: "var(--muted)" }}>
-                              {e.email || "—"}
-                            </td>
-                            <td>
-                              <button
-                                className="btn"
-                                onClick={() => handleEditClick(e)}
-                              >
-                                Modifier
-                              </button>
-                              <button
-                                className="btn btn-danger"
-                                onClick={() => handleDelete(e.id)}
-                                style={{ marginLeft: 8 }}
-                              >
-                                Supprimer
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div>
-                  <div className="card">
-                    <h3 style={{ marginTop: 0 }}>Demandes de congé</h3>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                      <button
-                        className="btn btn-primary"
-                        onClick={requestLeave}
-                      >
-                        Demander un congé (exemple)
-                      </button>
-                      <button className="btn" onClick={fetchLeaves}>
-                        Voir demandes
-                      </button>
-                    </div>
-                    <div className="leave-list">
-                      {leaves.map((l) => (
-                        <div className="leave-item" key={l.id}>
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
-                            <div>
-                              {l.employeeId} • {l.startDate} → {l.endDate} •{" "}
-                              <strong>{l.status}</strong>
-                            </div>
-                            <div style={{ display: "flex", gap: 8 }}>
-                              {l.status === "pending" && (
-                                <>
-                                  <button
-                                    className="btn btn-primary"
-                                    onClick={() => approveLeave(l.id)}
-                                  >
-                                    Approuver
-                                  </button>
-                                  <button
-                                    className="btn"
-                                    onClick={() => rejectLeave(l.id)}
-                                  >
-                                    Refuser
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </div>
+                      <div className="employee-profile-info">
+                        <div className="profile-name">
+                          {employeeRecord.name}
                         </div>
-                      ))}
+                        <div className="profile-badge">
+                          {employeeRecord.position}
+                        </div>
+                        <div className="profile-fields">
+                          {[
+                            ["DÃ©partement", employeeRecord.dept],
+                            ["Statut", employeeRecord.status || "Actif"],
+                            [
+                              "Salaire",
+                              employeeRecord.salary != null &&
+                              employeeRecord.salary !== ""
+                                ? `${Number(employeeRecord.salary).toLocaleString("fr-FR")} FCFA`
+                                : null,
+                            ],
+                            ["Type de contrat", employeeRecord.contractType],
+                            ["Sexe", employeeRecord.gender],
+                            ["TÃ©lÃ©phone", employeeRecord.phone],
+                            ["Date de naissance", employeeRecord.birthDate],
+                            ["Lieu de naissance", employeeRecord.birthPlace],
+                            ["Lieu d'habitation", employeeRecord.address],
+                            ["Email", employeeRecord.email],
+                          ].map(([label, value]) =>
+                            value ? (
+                              <div className="profile-field" key={label}>
+                                <span className="profile-field-label">
+                                  {label}
+                                </span>
+                                <span
+                                  className={`profile-field-value${label === "Statut" ? " profile-status" : ""}`}
+                                >
+                                  {value}
+                                </span>
+                              </div>
+                            ) : null,
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="profile-not-linked">
+                      <div style={{ fontSize: 36, marginBottom: 8 }}>âš ï¸</div>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        Fiche non liÃ©e
+                      </div>
+                      <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                        Contactez le service RH en leur donnant votre adresse
+                        email.
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </>
-            )}
-            {/* Admin/RH: Accès complet (employés + congés) */}
-            {role === "admin" && (
-              <>
-                <div>
-                  <div className="card">
-                    <form
-                      onSubmit={(e) =>
-                        editingId
-                          ? handleUpdateEmployee(e)
-                          : handleAddEmployee(e)
-                      }
-                      className="form-grid"
-                    >
-                      <input
-                        className="input"
-                        value={form.name}
-                        onChange={(e) =>
-                          setForm({ ...form, name: e.target.value })
-                        }
-                        placeholder="Nom complet"
-                      />
-                      <input
-                        className="input"
-                        value={form.position}
-                        onChange={(e) =>
-                          setForm({ ...form, position: e.target.value })
-                        }
-                        placeholder="Poste"
-                      />
-                      <input
-                        className="input"
-                        value={form.dept}
-                        onChange={(e) =>
-                          setForm({ ...form, dept: e.target.value })
-                        }
-                        placeholder="Département"
-                      />
-                      <input
-                        className="input"
-                        value={form.salary}
-                        onChange={(e) =>
-                          setForm({ ...form, salary: e.target.value })
-                        }
-                        placeholder="Salaire"
-                      />
-                      <input
-                        className="input"
-                        type="email"
-                        value={form.email}
-                        onChange={(e) =>
-                          setForm({ ...form, email: e.target.value })
-                        }
-                        placeholder="Email professionnel"
-                      />
-                      <input
-                        className="file"
-                        type="file"
-                        onChange={(e) => setFile(e.target.files[0])}
-                      />
+              )}
+
+              {/* â”€â”€ CONTRACTS TAB â”€â”€ */}
+              {empTab === "contracts" && (
+                <div style={{ marginTop: 16 }}>
+                  {contracts.length === 0 ? (
+                    <div className="card">
                       <div
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
+                          color: "var(--muted)",
+                          textAlign: "center",
+                          padding: 24,
                         }}
                       >
-                        {previewUrl ? (
-                          <img
-                            src={previewUrl}
-                            className="img-preview"
-                            alt="preview"
-                          />
-                        ) : editingId &&
-                          employees.find((x) => x.id === editingId) &&
-                          employees.find((x) => x.id === editingId)
-                            .profileImage ? (
-                          <img
-                            src={`${API.replace("/api", "")}${employees.find((x) => x.id === editingId).profileImage}`}
-                            className="img-preview"
-                            alt="current"
-                          />
-                        ) : (
+                        Aucun contrat enregistrÃ© pour votre compte.
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {contracts
+                        .filter((c) => c.isActive)
+                        .map((c) => (
                           <div
-                            style={{
-                              width: 96,
-                              height: 96,
-                              background: "#f1f5f9",
-                              borderRadius: 8,
-                            }}
-                          />
-                        )}
-                      </div>
-                      <div
-                        style={{ gridColumn: "1/-1", display: "flex", gap: 8 }}
-                      >
-                        <button className="btn btn-primary" type="submit">
-                          {editingId ? "Mettre à jour" : "Enregistrer"}
-                        </button>
-                        {editingId ? (
-                          <button
-                            type="button"
-                            className="btn"
-                            onClick={cancelEdit}
+                            className="card contract-card contract-active"
+                            key={c.id}
                           >
-                            Annuler
-                          </button>
-                        ) : null}
+                            <div className="contract-badge">
+                              Contrat actif âœ…
+                            </div>
+                            <div className="contract-type">{c.type}</div>
+                            <div className="contract-dates">
+                              <span>DÃ©but : {c.startDate || "â€”"}</span>
+                              {c.endDate && <span>Fin : {c.endDate}</span>}
+                            </div>
+                            {c.notes && (
+                              <div className="contract-notes">{c.notes}</div>
+                            )}
+                          </div>
+                        ))}
+                      {contracts.filter((c) => !c.isActive).length > 0 && (
+                        <>
+                          <h4
+                            style={{
+                              marginTop: 16,
+                              marginBottom: 8,
+                              color: "var(--muted)",
+                            }}
+                          >
+                            Contrats prÃ©cÃ©dents
+                          </h4>
+                          {contracts
+                            .filter((c) => !c.isActive)
+                            .map((c) => (
+                              <div className="card contract-card" key={c.id}>
+                                <div className="contract-type">{c.type}</div>
+                                <div className="contract-dates">
+                                  <span>DÃ©but : {c.startDate || "â€”"}</span>
+                                  {c.endDate && <span>Fin : {c.endDate}</span>}
+                                </div>
+                                {c.notes && (
+                                  <div className="contract-notes">
+                                    {c.notes}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* â”€â”€ SETTINGS TAB â”€â”€ */}
+              {empTab === "settings" && (
+                <div className="grid-2" style={{ marginTop: 16 }}>
+                  <div className="card">
+                    <h3 style={{ marginTop: 0 }}>Informations personnelles</h3>
+                    <form
+                      onSubmit={handleSaveSettings}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 12,
+                      }}
+                    >
+                      <div>
+                        <label className="form-label">Nom complet</label>
+                        <input
+                          className="input"
+                          value={settingsForm.name}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              name: e.target.value,
+                            })
+                          }
+                        />
                       </div>
+                      <div>
+                        <label className="form-label">TÃ©lÃ©phone</label>
+                        <input
+                          className="input"
+                          value={settingsForm.phone}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              phone: e.target.value,
+                            })
+                          }
+                          placeholder="+225 07 07 07 07"
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label">
+                          Lieu d&apos;habitation
+                        </label>
+                        <input
+                          className="input"
+                          value={settingsForm.address}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              address: e.target.value,
+                            })
+                          }
+                          placeholder="Cocody, Abidjan"
+                        />
+                      </div>
+                      <button className="btn btn-primary" type="submit">
+                        Enregistrer les modifications
+                      </button>
                     </form>
                   </div>
-                  <div className="card" style={{ marginTop: 16 }}>
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Photo</th>
-                          <th>Nom</th>
-                          <th>Poste</th>
-                          <th>Dépt</th>
-                          <th>Salaire</th>
-                          <th>Email</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {employees.map((e) => (
-                          <tr key={e.id}>
-                            <td>
-                              {e.profileImage ? (
-                                <img
-                                  src={`${API.replace("/api", "")}${e.profileImage}`}
-                                  alt="profile"
-                                  style={{
-                                    width: 48,
-                                    height: 48,
-                                    objectFit: "cover",
-                                    borderRadius: 8,
-                                  }}
-                                />
-                              ) : (
-                                <div
-                                  style={{
-                                    width: 48,
-                                    height: 48,
-                                    background: "#f1f5f9",
-                                    borderRadius: 8,
-                                  }}
-                                />
-                              )}
-                            </td>
-                            <td>{e.name}</td>
-                            <td>{e.position}</td>
-                            <td>{e.dept}</td>
-                            <td>{e.salary}</td>
-                            <td style={{ fontSize: 12, color: "var(--muted)" }}>
-                              {e.email || "—"}
-                            </td>
-                            <td>
-                              <button
-                                className="btn"
-                                onClick={() => handleEditClick(e)}
-                              >
-                                Modifier
-                              </button>
-                              <button
-                                className="btn btn-danger"
-                                onClick={() => handleDelete(e.id)}
-                                style={{ marginLeft: 8 }}
-                              >
-                                Supprimer
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="card">
+                    <h3 style={{ marginTop: 0 }}>Changer le mot de passe</h3>
+                    <form
+                      onSubmit={handleChangePassword}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 12,
+                      }}
+                    >
+                      <div>
+                        <label className="form-label">
+                          Mot de passe actuel
+                        </label>
+                        <input
+                          className="input"
+                          type="password"
+                          value={pwdForm.current}
+                          onChange={(e) =>
+                            setPwdForm({ ...pwdForm, current: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label">
+                          Nouveau mot de passe
+                        </label>
+                        <input
+                          className="input"
+                          type="password"
+                          value={pwdForm.next}
+                          onChange={(e) =>
+                            setPwdForm({ ...pwdForm, next: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label">
+                          Confirmer le nouveau mot de passe
+                        </label>
+                        <input
+                          className="input"
+                          type="password"
+                          value={pwdForm.confirm}
+                          onChange={(e) =>
+                            setPwdForm({ ...pwdForm, confirm: e.target.value })
+                          }
+                        />
+                      </div>
+                      <button className="btn btn-primary" type="submit">
+                        Modifier le mot de passe
+                      </button>
+                    </form>
                   </div>
                 </div>
-                <div>
-                  <div className="card">
-                    <h3 style={{ marginTop: 0 }}>Demandes de congé</h3>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                      <button
-                        className="btn btn-primary"
-                        onClick={requestLeave}
-                      >
-                        Demander un congé (exemple)
-                      </button>
-                      <button className="btn" onClick={fetchLeaves}>
-                        Voir demandes
-                      </button>
-                    </div>
-                    <div className="leave-list">
-                      {leaves.map((l) => (
-                        <div className="leave-item" key={l.id}>
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
-                            <div>
-                              {l.employeeId} • {l.startDate} → {l.endDate} •{" "}
-                              <strong>{l.status}</strong>
+              )}
+            </>
+          )}
+
+          {/* â•â•â•â• MANAGER VIEW â•â•â•â• */}
+          {role === "manager" && (
+            <div className="grid-2" style={{ marginTop: 18 }}>
+              <div>
+                <div className="card">
+                  <h3 style={{ marginTop: 0 }}>
+                    {editingId ? "Modifier l'employÃ©" : "Ajouter un employÃ©"}
+                  </h3>
+                  <form
+                    onSubmit={(e) =>
+                      editingId ? handleUpdateEmployee(e) : handleAddEmployee(e)
+                    }
+                    className="emp-form"
+                  >
+                    <EmployeeFormFields />
+                  </form>
+                </div>
+                <div className="card" style={{ marginTop: 16 }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Photo</th>
+                        <th>Nom</th>
+                        <th>Poste</th>
+                        <th>DÃ©pt</th>
+                        <th>Contrat</th>
+                        <th>Email</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {employees.map((e) => (
+                        <tr key={e.id}>
+                          <td>
+                            {e.profileImage ? (
+                              <img
+                                src={`${API.replace("/api", "")}${e.profileImage}`}
+                                alt="p"
+                                style={{
+                                  width: 48,
+                                  height: 48,
+                                  objectFit: "cover",
+                                  borderRadius: 8,
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: 48,
+                                  height: 48,
+                                  background: "#f1f5f9",
+                                  borderRadius: 8,
+                                }}
+                              />
+                            )}
+                          </td>
+                          <td>{e.name}</td>
+                          <td>{e.position}</td>
+                          <td>{e.dept}</td>
+                          <td>
+                            <span className="contract-tag">
+                              {e.contractType || "â€”"}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: 12, color: "var(--muted)" }}>
+                            {e.email || "â€”"}
+                          </td>
+                          <td>
+                            <button
+                              className="btn"
+                              onClick={() => handleEditClick(e)}
+                            >
+                              Modifier
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              onClick={() => handleDelete(e.id)}
+                              style={{ marginLeft: 8 }}
+                            >
+                              Supprimer
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div>
+                <div className="card">
+                  <h3 style={{ marginTop: 0 }}>Demandes de congÃ©</h3>
+                  <div className="leave-list">
+                    {leaves.length === 0 && (
+                      <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                        Aucune demande.
+                      </div>
+                    )}
+                    {leaves.map((l) => (
+                      <div className="leave-item" key={l.id}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          <div>
+                            <div className="leave-item-dates">
+                              {l.startDate} â†’ {l.endDate}{" "}
+                              <span className="leave-days">({l.days}j)</span>
                             </div>
-                            <div style={{ display: "flex", gap: 8 }}>
-                              {l.status === "pending" && (
-                                <>
-                                  <button
-                                    className="btn btn-primary"
-                                    onClick={() => approveLeave(l.id)}
-                                  >
-                                    Approuver
-                                  </button>
-                                  <button
-                                    className="btn"
-                                    onClick={() => rejectLeave(l.id)}
-                                  >
-                                    Refuser
-                                  </button>
-                                </>
-                              )}
+                            <div className="leave-item-reason">
+                              {l.reason} â€” Emp. #{l.employeeId}
                             </div>
                           </div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            {l.status === "pending" && (
+                              <>
+                                <button
+                                  className="btn btn-primary"
+                                  style={{ fontSize: 12 }}
+                                  onClick={() => approveLeave(l.id)}
+                                >
+                                  Approuver
+                                </button>
+                                <button
+                                  className="btn"
+                                  style={{ fontSize: 12 }}
+                                  onClick={() => rejectLeave(l.id)}
+                                >
+                                  Refuser
+                                </button>
+                              </>
+                            )}
+                            {l.status !== "pending" && (
+                              <span
+                                className={`leave-status leave-status-${l.status}`}
+                              >
+                                {l.status === "approved"
+                                  ? "âœ… ApprouvÃ©"
+                                  : "âŒ RefusÃ©"}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          )}
+
+          {/* â•â•â•â• ADMIN VIEW â•â•â•â• */}
+          {role === "admin" && (
+            <div className="grid-2" style={{ marginTop: 18 }}>
+              <div>
+                <div className="card">
+                  <h3 style={{ marginTop: 0 }}>
+                    {editingId ? "Modifier l'employÃ©" : "Ajouter un employÃ©"}
+                  </h3>
+                  <form
+                    onSubmit={(e) =>
+                      editingId ? handleUpdateEmployee(e) : handleAddEmployee(e)
+                    }
+                    className="emp-form"
+                  >
+                    <EmployeeFormFields />
+                  </form>
+                </div>
+                <div className="card" style={{ marginTop: 16 }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Photo</th>
+                        <th>Nom</th>
+                        <th>Poste</th>
+                        <th>DÃ©pt</th>
+                        <th>Contrat</th>
+                        <th>Salaire</th>
+                        <th>Email</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {employees.map((e) => (
+                        <tr key={e.id}>
+                          <td>
+                            {e.profileImage ? (
+                              <img
+                                src={`${API.replace("/api", "")}${e.profileImage}`}
+                                alt="p"
+                                style={{
+                                  width: 48,
+                                  height: 48,
+                                  objectFit: "cover",
+                                  borderRadius: 8,
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: 48,
+                                  height: 48,
+                                  background: "#f1f5f9",
+                                  borderRadius: 8,
+                                }}
+                              />
+                            )}
+                          </td>
+                          <td>{e.name}</td>
+                          <td>{e.position}</td>
+                          <td>{e.dept}</td>
+                          <td>
+                            <span className="contract-tag">
+                              {e.contractType || "â€”"}
+                            </span>
+                          </td>
+                          <td>
+                            {e.salary != null && e.salary !== ""
+                              ? Number(e.salary).toLocaleString("fr-FR")
+                              : "â€”"}
+                          </td>
+                          <td style={{ fontSize: 12, color: "var(--muted)" }}>
+                            {e.email || "â€”"}
+                          </td>
+                          <td>
+                            <button
+                              className="btn"
+                              onClick={() => handleEditClick(e)}
+                            >
+                              Modifier
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              onClick={() => handleDelete(e.id)}
+                              style={{ marginLeft: 8 }}
+                            >
+                              Supprimer
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div>
+                <div className="card">
+                  <h3 style={{ marginTop: 0 }}>Demandes de congÃ©</h3>
+                  <div className="leave-list">
+                    {leaves.length === 0 && (
+                      <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                        Aucune demande.
+                      </div>
+                    )}
+                    {leaves.map((l) => (
+                      <div className="leave-item" key={l.id}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          <div>
+                            <div className="leave-item-dates">
+                              {l.startDate} â†’ {l.endDate}{" "}
+                              <span className="leave-days">({l.days}j)</span>
+                            </div>
+                            <div className="leave-item-reason">
+                              {l.reason} â€” Emp. #{l.employeeId}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            {l.status === "pending" && (
+                              <>
+                                <button
+                                  className="btn btn-primary"
+                                  style={{ fontSize: 12 }}
+                                  onClick={() => approveLeave(l.id)}
+                                >
+                                  Approuver
+                                </button>
+                                <button
+                                  className="btn"
+                                  style={{ fontSize: 12 }}
+                                  onClick={() => rejectLeave(l.id)}
+                                >
+                                  Refuser
+                                </button>
+                              </>
+                            )}
+                            {l.status !== "pending" && (
+                              <span
+                                className={`leave-status leave-status-${l.status}`}
+                              >
+                                {l.status === "approved"
+                                  ? "âœ… ApprouvÃ©"
+                                  : "âŒ RefusÃ©"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
       <div className="toasts" aria-live="polite">

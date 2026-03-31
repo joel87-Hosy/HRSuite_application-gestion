@@ -165,6 +165,12 @@ app.post(
       status = "Actif",
       salary,
       email = "",
+      birthDate,
+      birthPlace,
+      contractType,
+      phone,
+      address,
+      gender,
     } = req.body;
     const salaryNum =
       salary !== undefined && salary !== ""
@@ -174,7 +180,10 @@ app.post(
       ? `/uploads/profiles/${req.file.filename}`
       : null;
     const stmt = db.prepare(
-      "INSERT INTO employees (name, position, dept, status, salary, profileImage, email) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      `INSERT INTO employees
+        (name, position, dept, status, salary, profileImage, email,
+         birthDate, birthPlace, contractType, phone, address, gender)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     stmt.run(
       name,
@@ -184,11 +193,16 @@ app.post(
       salaryNum,
       profileImage,
       email || null,
+      birthDate || null,
+      birthPlace || null,
+      contractType || null,
+      phone || null,
+      address || null,
+      gender || null,
       function (err) {
         if (err)
           return res.status(500).json({ message: "DB insert error", err });
         const newId = this.lastID;
-        // Auto-link to existing user account with the same email
         if (email) {
           db.get(
             "SELECT id FROM users WHERE email = ?",
@@ -202,6 +216,14 @@ app.post(
                 );
               }
             },
+          );
+        }
+        // Create initial contract record if contractType provided
+        if (contractType) {
+          db.run(
+            "INSERT INTO contracts (employeeId, type, startDate, isActive) VALUES (?, ?, ?, 1)",
+            [newId, contractType, new Date().toISOString().split("T")[0]],
+            () => {},
           );
         }
         db.get("SELECT * FROM employees WHERE id = ?", [newId], (e, row) => {
@@ -244,7 +266,20 @@ app.put(
   (req, res) => {
     const id = req.params.id;
     // fields may come from multipart form or JSON
-    const { name, position, dept, status, salary, email } = req.body;
+    const {
+      name,
+      position,
+      dept,
+      status,
+      salary,
+      email,
+      birthDate,
+      birthPlace,
+      contractType,
+      phone,
+      address,
+      gender,
+    } = req.body;
     const profileImage = req.file
       ? `/uploads/profiles/${req.file.filename}`
       : null;
@@ -278,6 +313,30 @@ app.put(
     if (email !== undefined) {
       updates.push("email = ?");
       params.push(email || null);
+    }
+    if (birthDate !== undefined) {
+      updates.push("birthDate = ?");
+      params.push(birthDate || null);
+    }
+    if (birthPlace !== undefined) {
+      updates.push("birthPlace = ?");
+      params.push(birthPlace || null);
+    }
+    if (contractType !== undefined) {
+      updates.push("contractType = ?");
+      params.push(contractType || null);
+    }
+    if (phone !== undefined) {
+      updates.push("phone = ?");
+      params.push(phone || null);
+    }
+    if (address !== undefined) {
+      updates.push("address = ?");
+      params.push(address || null);
+    }
+    if (gender !== undefined) {
+      updates.push("gender = ?");
+      params.push(gender || null);
     }
     if (profileImage) {
       updates.push("profileImage = ?");
@@ -377,6 +436,16 @@ app.get("/api/leaves/my", verifyToken, (req, res) => {
   );
 });
 
+// Helper: send notification to a user
+function createNotification(userId, message, type = "info") {
+  if (!userId) return;
+  db.run(
+    "INSERT INTO notifications (userId, message, type) VALUES (?, ?, ?)",
+    [userId, message, type],
+    () => {},
+  );
+}
+
 app.put(
   "/api/leaves/:id/approve",
   verifyToken,
@@ -388,6 +457,20 @@ app.put(
       ["approved", id],
       function (err) {
         if (err) return res.status(500).json({ message: "DB error", err });
+        // Notify employee
+        db.get(
+          "SELECT l.*, e.userId FROM leaves l LEFT JOIN employees e ON l.employeeId = e.id WHERE l.id = ?",
+          [id],
+          (e2, row) => {
+            if (row && row.userId) {
+              createNotification(
+                row.userId,
+                `✅ Votre demande de ${row.reason || "congé"} (${row.startDate} → ${row.endDate}) a été approuvée.`,
+                "success",
+              );
+            }
+          },
+        );
         res.json({ message: "Approved" });
       },
     );
@@ -405,11 +488,138 @@ app.put(
       ["rejected", id],
       function (err) {
         if (err) return res.status(500).json({ message: "DB error", err });
+        // Notify employee
+        db.get(
+          "SELECT l.*, e.userId FROM leaves l LEFT JOIN employees e ON l.employeeId = e.id WHERE l.id = ?",
+          [id],
+          (e2, row) => {
+            if (row && row.userId) {
+              createNotification(
+                row.userId,
+                `❌ Votre demande de ${row.reason || "congé"} (${row.startDate} → ${row.endDate}) a été refusée.`,
+                "error",
+              );
+            }
+          },
+        );
         res.json({ message: "Rejected" });
       },
     );
   },
 );
+
+// Contracts endpoints
+app.get("/api/contracts/my", verifyToken, (req, res) => {
+  db.get(
+    "SELECT id FROM employees WHERE userId = ?",
+    [req.user.id],
+    (err, emp) => {
+      if (err) return res.status(500).json({ message: "DB error", err });
+      if (!emp) return res.json([]);
+      db.all(
+        "SELECT * FROM contracts WHERE employeeId = ? ORDER BY isActive DESC, id DESC",
+        [emp.id],
+        (e2, rows) => res.json(rows || []),
+      );
+    },
+  );
+});
+
+app.get(
+  "/api/contracts/:employeeId",
+  verifyToken,
+  requireRole(["admin", "rh", "manager"]),
+  (req, res) => {
+    db.all(
+      "SELECT * FROM contracts WHERE employeeId = ? ORDER BY isActive DESC, id DESC",
+      [req.params.employeeId],
+      (err, rows) => res.json(rows || []),
+    );
+  },
+);
+
+// Notifications endpoints
+app.get("/api/notifications", verifyToken, (req, res) => {
+  db.all(
+    "SELECT * FROM notifications WHERE userId = ? ORDER BY id DESC LIMIT 50",
+    [req.user.id],
+    (err, rows) => res.json(rows || []),
+  );
+});
+
+app.put("/api/notifications/:id/read", verifyToken, (req, res) => {
+  db.run(
+    "UPDATE notifications SET isRead = 1 WHERE id = ? AND userId = ?",
+    [req.params.id, req.user.id],
+    () => res.json({ ok: true }),
+  );
+});
+
+app.put("/api/notifications/read-all", verifyToken, (req, res) => {
+  db.run(
+    "UPDATE notifications SET isRead = 1 WHERE userId = ?",
+    [req.user.id],
+    () => res.json({ ok: true }),
+  );
+});
+
+// Update own profile (employee settings)
+app.put("/api/profile", verifyToken, (req, res) => {
+  const { name, phone, address } = req.body;
+  const updates = [];
+  const params = [];
+  if (name !== undefined) {
+    updates.push("name = ?");
+    params.push(name);
+  }
+  if (updates.length > 0) {
+    params.push(req.user.id);
+    db.run(
+      `UPDATE users SET ${updates.join(", ")} WHERE id = ?`,
+      params,
+      () => {},
+    );
+  }
+  // Also update employee record if linked
+  const empUpdates = [];
+  const empParams = [];
+  if (phone !== undefined) {
+    empUpdates.push("phone = ?");
+    empParams.push(phone || null);
+  }
+  if (address !== undefined) {
+    empUpdates.push("address = ?");
+    empParams.push(address || null);
+  }
+  if (empUpdates.length > 0) {
+    empParams.push(req.user.id);
+    db.run(
+      `UPDATE employees SET ${empUpdates.join(", ")} WHERE userId = ?`,
+      empParams,
+      () => {},
+    );
+  }
+  res.json({ ok: true });
+});
+
+// Change password
+app.put("/api/change-password", verifyToken, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword)
+    return res.status(400).json({ message: "Champs requis" });
+  db.get("SELECT * FROM users WHERE id = ?", [req.user.id], (err, user) => {
+    if (err || !user)
+      return res.status(404).json({ message: "Utilisateur introuvable" });
+    if (!bcrypt.compareSync(currentPassword, user.passwordHash))
+      return res.status(401).json({ message: "Mot de passe actuel incorrect" });
+    const hash = bcrypt.hashSync(newPassword, bcrypt.genSaltSync(8));
+    db.run(
+      "UPDATE users SET passwordHash = ? WHERE id = ?",
+      [hash, req.user.id],
+      () => res.json({ ok: true }),
+    );
+  });
+});
 
 // Payroll simple generator
 app.post(

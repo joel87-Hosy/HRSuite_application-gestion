@@ -49,6 +49,41 @@ db.serialize(() => {
   // Safe migrations: add columns if they don't exist yet
   db.run("ALTER TABLE employees ADD COLUMN email TEXT", () => {});
   db.run("ALTER TABLE employees ADD COLUMN userId INTEGER", () => {});
+  db.run("ALTER TABLE employees ADD COLUMN birthDate TEXT", () => {});
+  db.run("ALTER TABLE employees ADD COLUMN birthPlace TEXT", () => {});
+  db.run("ALTER TABLE employees ADD COLUMN contractType TEXT", () => {});
+  db.run("ALTER TABLE employees ADD COLUMN phone TEXT", () => {});
+  db.run("ALTER TABLE employees ADD COLUMN address TEXT", () => {});
+  db.run("ALTER TABLE employees ADD COLUMN gender TEXT", () => {});
+
+  // Contracts table
+  db.run(
+    `CREATE TABLE IF NOT EXISTS contracts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    employeeId INTEGER,
+    type TEXT,
+    startDate TEXT,
+    endDate TEXT,
+    isActive INTEGER DEFAULT 1,
+    notes TEXT,
+    FOREIGN KEY(employeeId) REFERENCES employees(id)
+  )`,
+    () => {},
+  );
+
+  // Notifications table
+  db.run(
+    `CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER,
+    message TEXT,
+    type TEXT DEFAULT 'info',
+    isRead INTEGER DEFAULT 0,
+    createdAt TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY(userId) REFERENCES users(id)
+  )`,
+    () => {},
+  );
 });
 
 // Ensure a default admin exists for first-run convenience
