@@ -163,9 +163,13 @@ app.post(
       position,
       dept,
       status = "Actif",
-      salary = 0,
+      salary,
       email = "",
     } = req.body;
+    const salaryNum =
+      salary !== undefined && salary !== ""
+        ? parseFloat(String(salary).replace(/[^0-9.]/g, "")) || 0
+        : 0;
     const profileImage = req.file
       ? `/uploads/profiles/${req.file.filename}`
       : null;
@@ -177,7 +181,7 @@ app.post(
       position,
       dept,
       status,
-      salary,
+      salaryNum,
       profileImage,
       email || null,
       function (err) {
@@ -265,7 +269,11 @@ app.put(
     }
     if (salary !== undefined) {
       updates.push("salary = ?");
-      params.push(salary);
+      params.push(
+        salary !== ""
+          ? parseFloat(String(salary).replace(/[^0-9.]/g, "")) || 0
+          : 0,
+      );
     }
     if (email !== undefined) {
       updates.push("email = ?");
@@ -287,7 +295,8 @@ app.put(
           if (user) {
             db.run(
               "UPDATE employees SET userId = ? WHERE id = ? AND (userId IS NULL OR userId = 0)",
-              [user.id, id], () => {},
+              [user.id, id],
+              () => {},
             );
           }
         });

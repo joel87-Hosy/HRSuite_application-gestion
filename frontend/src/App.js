@@ -623,7 +623,8 @@ function App() {
                                 Salaire
                               </span>
                               <span className="profile-field-value">
-                                {employeeRecord.salary
+                                {employeeRecord.salary != null &&
+                                employeeRecord.salary !== ""
                                   ? `${Number(employeeRecord.salary).toLocaleString("fr-FR")} FCFA`
                                   : "—"}
                               </span>
