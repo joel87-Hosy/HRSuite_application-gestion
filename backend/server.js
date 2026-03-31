@@ -10,7 +10,12 @@ const db = require("./db");
 const SECRET = process.env.JWT_SECRET || "CHANGE_THIS_SECRET";
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "https://joel87-hosy.github.io"],
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -341,4 +346,5 @@ app.post(
   },
 );
 
-app.listen(5000, () => console.log("Serveur backend sur le port 5000"));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Serveur backend sur le port ${PORT}`));
