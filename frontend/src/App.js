@@ -7,10 +7,199 @@ const CONTRACT_TYPES = [
   "CDI",
   "CDD",
   "Stage",
-  "IntÃ©rim",
+  "Intérim",
   "Consultant",
   "Apprentissage",
 ];
+
+// Top-level component so React doesn't remount it on every App re-render
+function EmployeeFormFields({
+  form,
+  setForm,
+  file,
+  setFile,
+  previewUrl,
+  setPreviewUrl,
+  editingId,
+  employees,
+  cancelEdit,
+}) {
+  return (
+    <>
+      <div className="form-section-title">Informations générales</div>
+      <div className="form-row-2">
+        <div>
+          <label className="form-label">Nom complet *</label>
+          <input
+            className="input"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Prénom Nom"
+            required
+          />
+        </div>
+        <div>
+          <label className="form-label">Email professionnel</label>
+          <input
+            className="input"
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="email@entreprise.com"
+          />
+        </div>
+      </div>
+      <div className="form-row-2">
+        <div>
+          <label className="form-label">Poste *</label>
+          <input
+            className="input"
+            value={form.position}
+            onChange={(e) => setForm({ ...form, position: e.target.value })}
+            placeholder="Ex: Développeur"
+            required
+          />
+        </div>
+        <div>
+          <label className="form-label">Département</label>
+          <input
+            className="input"
+            value={form.dept}
+            onChange={(e) => setForm({ ...form, dept: e.target.value })}
+            placeholder="Ex: Informatique"
+          />
+        </div>
+      </div>
+      <div className="form-row-2">
+        <div>
+          <label className="form-label">Salaire (FCFA)</label>
+          <input
+            className="input"
+            value={form.salary}
+            onChange={(e) => setForm({ ...form, salary: e.target.value })}
+            placeholder="Ex: 500000"
+          />
+        </div>
+        <div>
+          <label className="form-label">Type de contrat</label>
+          <select
+            className="input"
+            value={form.contractType}
+            onChange={(e) => setForm({ ...form, contractType: e.target.value })}
+          >
+            <option value="">— Sélectionner —</option>
+            {CONTRACT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="form-section-title" style={{ marginTop: 16 }}>
+        Informations personnelles
+      </div>
+      <div className="form-row-2">
+        <div>
+          <label className="form-label">Sexe</label>
+          <select
+            className="input"
+            value={form.gender}
+            onChange={(e) => setForm({ ...form, gender: e.target.value })}
+          >
+            <option value="">— Sélectionner —</option>
+            <option value="Masculin">Masculin</option>
+            <option value="Féminin">Féminin</option>
+          </select>
+        </div>
+        <div>
+          <label className="form-label">Téléphone</label>
+          <input
+            className="input"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            placeholder="Ex: +225 07 07 07 07"
+          />
+        </div>
+      </div>
+      <div className="form-row-2">
+        <div>
+          <label className="form-label">Date de naissance</label>
+          <input
+            className="input"
+            type="date"
+            value={form.birthDate}
+            onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="form-label">Lieu de naissance</label>
+          <input
+            className="input"
+            value={form.birthPlace}
+            onChange={(e) => setForm({ ...form, birthPlace: e.target.value })}
+            placeholder="Ex: Abidjan"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="form-label">Lieu d'habitation</label>
+        <input
+          className="input"
+          value={form.address}
+          onChange={(e) => setForm({ ...form, address: e.target.value })}
+          placeholder="Ex: Cocody, Abidjan"
+        />
+      </div>
+      <div className="form-section-title" style={{ marginTop: 16 }}>
+        Photo de profil
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <input
+          className="file"
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            const f = e.target.files[0];
+            setFile(f);
+            if (f) setPreviewUrl(URL.createObjectURL(f));
+          }}
+        />
+        {previewUrl ? (
+          <img src={previewUrl} className="img-preview" alt="preview" />
+        ) : editingId &&
+          employees.find((x) => x.id === editingId)?.profileImage ? (
+          <img
+            src={`${API.replace("/api", "")}${employees.find((x) => x.id === editingId).profileImage}`}
+            className="img-preview"
+            alt="current"
+          />
+        ) : (
+          <div
+            style={{
+              width: 96,
+              height: 96,
+              background: "#f1f5f9",
+              borderRadius: 8,
+            }}
+          />
+        )}
+      </div>
+      <div
+        style={{ gridColumn: "1/-1", display: "flex", gap: 8, marginTop: 8 }}
+      >
+        <button className="btn btn-primary" type="submit">
+          {editingId ? "Mettre à jour" : "Enregistrer"}
+        </button>
+        {editingId && (
+          <button type="button" className="btn" onClick={cancelEdit}>
+            Annuler
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
 
 function App() {
   const [token, setToken] = useState(null);
@@ -95,7 +284,7 @@ function App() {
     });
     setRegisterLoading(false);
     if (res.ok) {
-      pushToast("Compte crÃ©Ã©, connectez-vous", "success");
+      pushToast("Compte créé, connectez-vous", "success");
       setShowRegister(false);
       setRegister({ email: "", password: "", name: "", role: "employee" });
     } else {
@@ -123,7 +312,7 @@ function App() {
       setName(data.name);
       setEmployeeId(data.employeeId || null);
       setLogin({ email: "", password: "" });
-      pushToast("ConnectÃ©", "success");
+      pushToast("Connecté", "success");
     } else {
       const err = await res.json();
       pushToast(err.message || "Erreur de connexion", "error");
@@ -224,7 +413,7 @@ function App() {
       body: data,
     });
     if (res.ok) {
-      pushToast("EmployÃ© ajoutÃ©", "success");
+      pushToast("Employé ajouté", "success");
       resetForm();
       fetchEmployees();
     } else {
@@ -246,7 +435,7 @@ function App() {
       body: data,
     });
     if (res.ok) {
-      pushToast("EmployÃ© mis Ã  jour", "success");
+      pushToast("Employé mis à jour", "success");
       cancelEdit();
       fetchEmployees();
     } else {
@@ -275,8 +464,8 @@ function App() {
 
   async function handleDelete(id) {
     setModal({
-      title: "Supprimer employÃ©",
-      message: "Confirmer la suppression de cet employÃ© ?",
+      title: "Supprimer employé",
+      message: "Confirmer la suppression de cet employé ?",
       async onConfirm() {
         setModal(null);
         const res = await fetch(`${API}/employees/${id}`, {
@@ -284,7 +473,7 @@ function App() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
-          pushToast("EmployÃ© supprimÃ©", "success");
+          pushToast("Employé supprimé", "success");
           fetchEmployees();
         } else {
           const err = await res.json();
@@ -316,9 +505,9 @@ function App() {
       body: JSON.stringify(settingsForm),
     });
     if (res.ok) {
-      pushToast("Profil mis Ã  jour", "success");
+      pushToast("Profil mis à jour", "success");
       fetchEmployees();
-    } else pushToast("Erreur lors de la mise Ã  jour", "error");
+    } else pushToast("Erreur lors de la mise à jour", "error");
   }
 
   async function handleChangePassword(e) {
@@ -343,193 +532,12 @@ function App() {
       }),
     });
     if (res.ok) {
-      pushToast("Mot de passe modifiÃ©", "success");
+      pushToast("Mot de passe modifié", "success");
       setPwdForm({ current: "", next: "", confirm: "" });
     } else {
       const err = await res.json();
       pushToast("Erreur: " + (err.message || "erreur"), "error");
     }
-  }
-
-  // Shared employee form fields for manager/admin
-  function EmployeeFormFields() {
-    return (
-      <>
-        <div className="form-section-title">Informations gÃ©nÃ©rales</div>
-        <div className="form-row-2">
-          <div>
-            <label className="form-label">Nom complet *</label>
-            <input
-              className="input"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="PrÃ©nom Nom"
-              required
-            />
-          </div>
-          <div>
-            <label className="form-label">Email professionnel</label>
-            <input
-              className="input"
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="email@entreprise.com"
-            />
-          </div>
-        </div>
-        <div className="form-row-2">
-          <div>
-            <label className="form-label">Poste *</label>
-            <input
-              className="input"
-              value={form.position}
-              onChange={(e) => setForm({ ...form, position: e.target.value })}
-              placeholder="Ex: DÃ©veloppeur"
-              required
-            />
-          </div>
-          <div>
-            <label className="form-label">DÃ©partement</label>
-            <input
-              className="input"
-              value={form.dept}
-              onChange={(e) => setForm({ ...form, dept: e.target.value })}
-              placeholder="Ex: Informatique"
-            />
-          </div>
-        </div>
-        <div className="form-row-2">
-          <div>
-            <label className="form-label">Salaire (FCFA)</label>
-            <input
-              className="input"
-              value={form.salary}
-              onChange={(e) => setForm({ ...form, salary: e.target.value })}
-              placeholder="Ex: 500000"
-            />
-          </div>
-          <div>
-            <label className="form-label">Type de contrat</label>
-            <select
-              className="input"
-              value={form.contractType}
-              onChange={(e) =>
-                setForm({ ...form, contractType: e.target.value })
-              }
-            >
-              <option value="">â€” SÃ©lectionner â€”</option>
-              {CONTRACT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="form-section-title" style={{ marginTop: 16 }}>
-          Informations personnelles
-        </div>
-        <div className="form-row-2">
-          <div>
-            <label className="form-label">Sexe</label>
-            <select
-              className="input"
-              value={form.gender}
-              onChange={(e) => setForm({ ...form, gender: e.target.value })}
-            >
-              <option value="">â€” SÃ©lectionner â€”</option>
-              <option value="Masculin">Masculin</option>
-              <option value="FÃ©minin">FÃ©minin</option>
-            </select>
-          </div>
-          <div>
-            <label className="form-label">TÃ©lÃ©phone</label>
-            <input
-              className="input"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              placeholder="Ex: +225 07 07 07 07"
-            />
-          </div>
-        </div>
-        <div className="form-row-2">
-          <div>
-            <label className="form-label">Date de naissance</label>
-            <input
-              className="input"
-              type="date"
-              value={form.birthDate}
-              onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="form-label">Lieu de naissance</label>
-            <input
-              className="input"
-              value={form.birthPlace}
-              onChange={(e) => setForm({ ...form, birthPlace: e.target.value })}
-              placeholder="Ex: Abidjan"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="form-label">Lieu d&apos;habitation</label>
-          <input
-            className="input"
-            value={form.address}
-            onChange={(e) => setForm({ ...form, address: e.target.value })}
-            placeholder="Ex: Cocody, Abidjan"
-          />
-        </div>
-        <div className="form-section-title" style={{ marginTop: 16 }}>
-          Photo de profil
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <input
-            className="file"
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const f = e.target.files[0];
-              setFile(f);
-              if (f) setPreviewUrl(URL.createObjectURL(f));
-            }}
-          />
-          {previewUrl ? (
-            <img src={previewUrl} className="img-preview" alt="preview" />
-          ) : editingId &&
-            employees.find((x) => x.id === editingId)?.profileImage ? (
-            <img
-              src={`${API.replace("/api", "")}${employees.find((x) => x.id === editingId).profileImage}`}
-              className="img-preview"
-              alt="current"
-            />
-          ) : (
-            <div
-              style={{
-                width: 96,
-                height: 96,
-                background: "#f1f5f9",
-                borderRadius: 8,
-              }}
-            />
-          )}
-        </div>
-        <div
-          style={{ gridColumn: "1/-1", display: "flex", gap: 8, marginTop: 8 }}
-        >
-          <button className="btn btn-primary" type="submit">
-            {editingId ? "Mettre Ã  jour" : "Enregistrer"}
-          </button>
-          {editingId && (
-            <button type="button" className="btn" onClick={cancelEdit}>
-              Annuler
-            </button>
-          )}
-        </div>
-      </>
-    );
   }
 
   async function fetchLeaves() {
@@ -556,7 +564,7 @@ function App() {
     const empId = employeeRecord ? employeeRecord.id : employeeId;
     if (!empId) {
       pushToast(
-        "Aucune fiche employÃ© liÃ©e Ã  votre compte. Contactez le RH.",
+        "Aucune fiche employé liée à votre compte. Contactez le RH.",
         "error",
         5000,
       );
@@ -580,9 +588,9 @@ function App() {
     if (res.ok) {
       setLeaveForm({ startDate: "", endDate: "", reason: "" });
       fetchLeaves();
-      pushToast("Demande de congÃ© envoyÃ©e", "success");
+      pushToast("Demande de congé envoyée", "success");
     } else {
-      pushToast("Erreur lors de la demande de congÃ©", "error");
+      pushToast("Erreur lors de la demande de congé", "error");
     }
   }
 
@@ -592,7 +600,7 @@ function App() {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
-      pushToast("Demande approuvÃ©e", "success");
+      pushToast("Demande approuvée", "success");
       fetchLeaves();
     } else {
       const err = await res.json();
@@ -606,7 +614,7 @@ function App() {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
-      pushToast("Demande rejetÃ©e", "success");
+      pushToast("Demande rejetée", "success");
       fetchLeaves();
     } else {
       const err = await res.json();
@@ -632,8 +640,8 @@ function App() {
               </svg>
               <span className="auth-logo-text">HRSuite</span>
             </div>
-            <h2 className="auth-title">CrÃ©er un compte</h2>
-            <p className="auth-subtitle">Rejoignez votre Ã©quipe RH</p>
+            <h2 className="auth-title">Créer un compte</h2>
+            <p className="auth-subtitle">Rejoignez votre équipe RH</p>
             <form onSubmit={handleRegister} className="auth-form">
               <div className="auth-field">
                 <label className="auth-label">Nom complet</label>
@@ -669,7 +677,7 @@ function App() {
                     setRegister({ ...register, password: e.target.value })
                   }
                   type="password"
-                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  placeholder="••••••••"
                   autoComplete="new-password"
                 />
               </div>
@@ -682,15 +690,15 @@ function App() {
                 disabled={registerLoading}
               >
                 {registerLoading
-                  ? "CrÃ©ation en cours..."
-                  : "CrÃ©er mon compte"}
+                  ? "Création en cours..."
+                  : "Créer mon compte"}
               </button>
               <button
                 type="button"
                 className="auth-link"
                 onClick={() => setShowRegister(false)}
               >
-                DÃ©jÃ  un compte ? <strong>Se connecter</strong>
+                Déjà un compte ? <strong>Se connecter</strong>
               </button>
             </form>
           </div>
@@ -720,8 +728,8 @@ function App() {
             </svg>
             <span className="auth-logo-text">HRSuite</span>
           </div>
-          <h2 className="auth-title">Bienvenue ðŸ‘‹</h2>
-          <p className="auth-subtitle">Connectez-vous Ã  votre espace RH</p>
+          <h2 className="auth-title">Bienvenue 👋</h2>
+          <p className="auth-subtitle">Connectez-vous à votre espace RH</p>
           <form onSubmit={handleLogin} className="auth-form">
             <div className="auth-field">
               <label className="auth-label">Adresse email</label>
@@ -744,7 +752,7 @@ function App() {
                     setLogin({ ...login, password: e.target.value })
                   }
                   type={showPassword ? "text" : "password"}
-                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  placeholder="••••••••"
                   autoComplete="current-password"
                 />
                 <button
@@ -753,7 +761,7 @@ function App() {
                   onClick={() => setShowPassword((s) => !s)}
                   aria-label="Afficher/masquer le mot de passe"
                 >
-                  {showPassword ? "ðŸ™ˆ" : "ðŸ‘ï¸"}
+                  {showPassword ? "🙈" : "👁️"}
                 </button>
               </div>
             </div>
@@ -763,7 +771,7 @@ function App() {
                 className="auth-link-sm"
                 onClick={async () => {
                   const email = window.prompt(
-                    "Entrez votre email pour rÃ©initialiser le mot de passe",
+                    "Entrez votre email pour réinitialiser le mot de passe",
                   );
                   if (!email) return;
                   try {
@@ -775,7 +783,7 @@ function App() {
                     if (res.ok) {
                       const data = await res.json();
                       pushToast(
-                        "Mot de passe rÃ©initialisÃ©.",
+                        "Mot de passe réinitialisé.",
                         "success",
                         8000,
                       );
@@ -783,7 +791,7 @@ function App() {
                         () =>
                           alert(
                             "Mot de passe temporaire: " +
-                              (data.tempPassword || "â€”"),
+                              (data.tempPassword || "—"),
                           ),
                         50,
                       );
@@ -795,11 +803,11 @@ function App() {
                       );
                     }
                   } catch (e) {
-                    pushToast("Erreur rÃ©seau", "error");
+                    pushToast("Erreur réseau", "error");
                   }
                 }}
               >
-                Mot de passe oubliÃ© ?
+                Mot de passe oublié ?
               </button>
             </div>
             <button className="auth-btn" type="submit">
@@ -810,7 +818,7 @@ function App() {
               className="auth-link"
               onClick={() => setShowRegister(true)}
             >
-              Pas encore de compte ? <strong>CrÃ©er un compte</strong>
+              Pas encore de compte ? <strong>Créer un compte</strong>
             </button>
           </form>
         </div>
@@ -825,7 +833,7 @@ function App() {
     );
   }
 
-  // â”€â”€ Main app â”€â”€
+  // ── Main app ──
   return (
     <div className="app">
       {/* Mobile topbar */}
@@ -841,7 +849,7 @@ function App() {
               }}
               aria-label="Notifications"
             >
-              ðŸ””
+              🔔
               {unreadCount > 0 && (
                 <span className="notif-badge">{unreadCount}</span>
               )}
@@ -863,14 +871,14 @@ function App() {
       )}
       <aside className={`sidebar${menuOpen ? " sidebar-open" : ""}`}>
         <div className="brand">HRSuite</div>
-        <div className="user">ConnectÃ©: {name || "utilisateur"}</div>
+        <div className="user">Connecté: {name || "utilisateur"}</div>
         {role === "employee" && (
           <nav className="emp-nav">
             {[
-              { id: "home", label: "ðŸ  Accueil" },
-              { id: "profile", label: "ðŸ‘¤ Mon Profil" },
-              { id: "contracts", label: "ðŸ“„ Mes Contrats" },
-              { id: "settings", label: "âš™ï¸ ParamÃ¨tres" },
+              { id: "home", label: "🏠 Accueil" },
+              { id: "profile", label: "👤 Mon Profil" },
+              { id: "contracts", label: "📄 Mes Contrats" },
+              { id: "settings", label: "⚙️ Paramètres" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -895,7 +903,7 @@ function App() {
                 setMenuOpen(false);
               }}
             >
-              ðŸ”” Notifications{" "}
+              🔔 Notifications{" "}
               {unreadCount > 0 && (
                 <span className="notif-badge-inline">{unreadCount}</span>
               )}
@@ -909,7 +917,7 @@ function App() {
               setMenuOpen(false);
             }}
           >
-            RafraÃ®chir
+            Rafraîchir
           </button>
           <button
             className="btn btn-danger"
@@ -919,7 +927,7 @@ function App() {
               setMenuOpen(false);
             }}
           >
-            DÃ©connexion
+            Déconnexion
           </button>
         </div>
       </aside>
@@ -943,7 +951,7 @@ function App() {
                 style={{ fontSize: 12, padding: "2px 8px" }}
                 onClick={() => setNotifOpen(false)}
               >
-                âœ•
+                ✕
               </button>
             </div>
           </div>
@@ -979,7 +987,7 @@ function App() {
                     ? "Mon Profil"
                     : empTab === "contracts"
                       ? "Mes Contrats"
-                      : "ParamÃ¨tres")}
+                      : "Paramètres")}
               {role === "manager" && "Gestion du Personnel"}
               {role === "admin" && "Administration RH"}
             </div>
@@ -993,26 +1001,26 @@ function App() {
                     fetchNotifications();
                   }}
                 >
-                  ðŸ””
+                  🔔
                   {unreadCount > 0 && (
                     <span className="notif-badge">{unreadCount}</span>
                   )}
                 </button>
               )}
-              <div style={{ color: "var(--muted)" }}>SystÃ¨me RH</div>
+              <div style={{ color: "var(--muted)" }}>Système RH</div>
             </div>
           </div>
 
-          {/* â•â•â•â• EMPLOYEE DASHBOARD â•â•â•â• */}
+          {/* ════ EMPLOYEE DASHBOARD ════ */}
           {role === "employee" && (
             <>
               {/* Desktop tab bar */}
               <div className="emp-tab-bar">
                 {[
-                  { id: "home", label: "ðŸ  Accueil" },
-                  { id: "profile", label: "ðŸ‘¤ Mon Profil" },
-                  { id: "contracts", label: "ðŸ“„ Mes Contrats" },
-                  { id: "settings", label: "âš™ï¸ ParamÃ¨tres" },
+                  { id: "home", label: "🏠 Accueil" },
+                  { id: "profile", label: "👤 Mon Profil" },
+                  { id: "contracts", label: "📄 Mes Contrats" },
+                  { id: "settings", label: "⚙️ Paramètres" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -1024,33 +1032,35 @@ function App() {
                 ))}
               </div>
 
-              {/* â”€â”€ HOME TAB â”€â”€ */}
+              {/* ── HOME TAB ── */}
               {empTab === "home" && (
                 <div className="emp-home">
                   <div className="emp-stats-row">
                     <div className="emp-stat-card">
-                      <div className="emp-stat-icon">ðŸ–ï¸</div>
+                      <div className="emp-stat-icon">🏖️</div>
                       <div className="emp-stat-value">52</div>
                       <div className="emp-stat-label">
-                        Jours congÃ© autorisÃ©s
+                        Jours congé autorisés
                       </div>
                     </div>
                     <div className="emp-stat-card">
-                      <div className="emp-stat-icon">ðŸ“‹</div>
+                      <div className="emp-stat-icon">📋</div>
                       <div className="emp-stat-value">10</div>
                       <div className="emp-stat-label">
-                        Permissions autorisÃ©es
+                        Permissions autorisées
                       </div>
                     </div>
                     <div className="emp-stat-card">
-                      <div className="emp-stat-icon">âœ…</div>
+                      <div className="emp-stat-icon">✅</div>
                       <div className="emp-stat-value">
                         {leaves.filter((l) => l.status === "approved").length}
                       </div>
-                      <div className="emp-stat-label">Demandes approuvÃ©es</div>
+                      <div className="emp-stat-label">
+                        Demandes approuvées
+                      </div>
                     </div>
                     <div className="emp-stat-card">
-                      <div className="emp-stat-icon">â³</div>
+                      <div className="emp-stat-icon">⏳</div>
                       <div className="emp-stat-value">
                         {leaves.filter((l) => l.status === "pending").length}
                       </div>
@@ -1062,13 +1072,15 @@ function App() {
                       className="profile-not-linked"
                       style={{ marginTop: 16 }}
                     >
-                      <div style={{ fontSize: 36, marginBottom: 8 }}>âš ï¸</div>
+                      <div style={{ fontSize: 36, marginBottom: 8 }}>
+                        ⚠️
+                      </div>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                        Fiche non liÃ©e
+                        Fiche non liée
                       </div>
                       <div style={{ color: "var(--muted)", fontSize: 14 }}>
-                        Votre compte n&apos;est pas encore liÃ© Ã  une fiche
-                        employÃ©.
+                        Votre compte n&apos;est pas encore lié à une fiche
+                        employé.
                         <br />
                         Contactez le service RH en leur donnant votre adresse
                         email.
@@ -1078,7 +1090,7 @@ function App() {
                   <div className="grid-2" style={{ marginTop: 16 }}>
                     <div className="card">
                       <h3 style={{ marginTop: 0 }}>
-                        Demande de congÃ© / permission
+                        Demande de congé / permission
                       </h3>
                       {!employeeRecord && (
                         <div
@@ -1088,14 +1100,16 @@ function App() {
                             marginBottom: 10,
                           }}
                         >
-                          Votre fiche employÃ© doit Ãªtre liÃ©e pour soumettre
-                          une demande.
+                          Votre fiche employé doit être liée pour
+                          soumettre une demande.
                         </div>
                       )}
                       <form onSubmit={requestLeave} className="leave-form">
                         <div className="leave-form-row">
                           <div>
-                            <label className="form-label">Date de dÃ©but</label>
+                            <label className="form-label">
+                              Date de début
+                            </label>
                             <input
                               className="input"
                               type="date"
@@ -1136,7 +1150,7 @@ function App() {
                                 reason: e.target.value,
                               })
                             }
-                            placeholder="Ex: CongÃ©s annuels, Permission..."
+                            placeholder="Ex: Congés annuels, Permission..."
                             required
                           />
                         </div>
@@ -1162,16 +1176,16 @@ function App() {
                         {leaves.map((l) => (
                           <div className="leave-item" key={l.id}>
                             <div className="leave-item-dates">
-                              {l.startDate} â†’ {l.endDate}{" "}
+                              {l.startDate} → {l.endDate}{" "}
                               <span className="leave-days">({l.days}j)</span>
                             </div>
                             <div className="leave-item-reason">{l.reason}</div>
                             <div
                               className={`leave-status leave-status-${l.status}`}
                             >
-                              {l.status === "pending" && "â³ En attente"}
-                              {l.status === "approved" && "âœ… ApprouvÃ©"}
-                              {l.status === "rejected" && "âŒ RefusÃ©"}
+                              {l.status === "pending" && "⏳ En attente"}
+                              {l.status === "approved" && "✅ Approuvé"}
+                              {l.status === "rejected" && "❌ Refusé"}
                             </div>
                           </div>
                         ))}
@@ -1181,7 +1195,7 @@ function App() {
                 </div>
               )}
 
-              {/* â”€â”€ PROFILE TAB â”€â”€ */}
+              {/* ── PROFILE TAB ── */}
               {empTab === "profile" && (
                 <div className="card" style={{ marginTop: 16 }}>
                   {employeeRecord ? (
@@ -1210,7 +1224,7 @@ function App() {
                         </div>
                         <div className="profile-fields">
                           {[
-                            ["DÃ©partement", employeeRecord.dept],
+                            ["Département", employeeRecord.dept],
                             ["Statut", employeeRecord.status || "Actif"],
                             [
                               "Salaire",
@@ -1221,7 +1235,7 @@ function App() {
                             ],
                             ["Type de contrat", employeeRecord.contractType],
                             ["Sexe", employeeRecord.gender],
-                            ["TÃ©lÃ©phone", employeeRecord.phone],
+                            ["Téléphone", employeeRecord.phone],
                             ["Date de naissance", employeeRecord.birthDate],
                             ["Lieu de naissance", employeeRecord.birthPlace],
                             ["Lieu d'habitation", employeeRecord.address],
@@ -1245,9 +1259,11 @@ function App() {
                     </div>
                   ) : (
                     <div className="profile-not-linked">
-                      <div style={{ fontSize: 36, marginBottom: 8 }}>âš ï¸</div>
+                      <div style={{ fontSize: 36, marginBottom: 8 }}>
+                        ⚠️
+                      </div>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                        Fiche non liÃ©e
+                        Fiche non liée
                       </div>
                       <div style={{ color: "var(--muted)", fontSize: 14 }}>
                         Contactez le service RH en leur donnant votre adresse
@@ -1258,7 +1274,7 @@ function App() {
                 </div>
               )}
 
-              {/* â”€â”€ CONTRACTS TAB â”€â”€ */}
+              {/* ── CONTRACTS TAB ── */}
               {empTab === "contracts" && (
                 <div style={{ marginTop: 16 }}>
                   {contracts.length === 0 ? (
@@ -1270,7 +1286,7 @@ function App() {
                           padding: 24,
                         }}
                       >
-                        Aucun contrat enregistrÃ© pour votre compte.
+                        Aucun contrat enregistré pour votre compte.
                       </div>
                     </div>
                   ) : (
@@ -1283,11 +1299,11 @@ function App() {
                             key={c.id}
                           >
                             <div className="contract-badge">
-                              Contrat actif âœ…
+                              Contrat actif ✅
                             </div>
                             <div className="contract-type">{c.type}</div>
                             <div className="contract-dates">
-                              <span>DÃ©but : {c.startDate || "â€”"}</span>
+                              <span>Début : {c.startDate || "—"}</span>
                               {c.endDate && <span>Fin : {c.endDate}</span>}
                             </div>
                             {c.notes && (
@@ -1304,7 +1320,7 @@ function App() {
                               color: "var(--muted)",
                             }}
                           >
-                            Contrats prÃ©cÃ©dents
+                            Contrats précédents
                           </h4>
                           {contracts
                             .filter((c) => !c.isActive)
@@ -1312,7 +1328,9 @@ function App() {
                               <div className="card contract-card" key={c.id}>
                                 <div className="contract-type">{c.type}</div>
                                 <div className="contract-dates">
-                                  <span>DÃ©but : {c.startDate || "â€”"}</span>
+                                  <span>
+                                    Début : {c.startDate || "—"}
+                                  </span>
                                   {c.endDate && <span>Fin : {c.endDate}</span>}
                                 </div>
                                 {c.notes && (
@@ -1329,7 +1347,7 @@ function App() {
                 </div>
               )}
 
-              {/* â”€â”€ SETTINGS TAB â”€â”€ */}
+              {/* ── SETTINGS TAB ── */}
               {empTab === "settings" && (
                 <div className="grid-2" style={{ marginTop: 16 }}>
                   <div className="card">
@@ -1356,7 +1374,7 @@ function App() {
                         />
                       </div>
                       <div>
-                        <label className="form-label">TÃ©lÃ©phone</label>
+                        <label className="form-label">Téléphone</label>
                         <input
                           className="input"
                           value={settingsForm.phone}
@@ -1449,13 +1467,13 @@ function App() {
             </>
           )}
 
-          {/* â•â•â•â• MANAGER VIEW â•â•â•â• */}
+          {/* ════ MANAGER VIEW ════ */}
           {role === "manager" && (
             <div className="grid-2" style={{ marginTop: 18 }}>
               <div>
                 <div className="card">
                   <h3 style={{ marginTop: 0 }}>
-                    {editingId ? "Modifier l'employÃ©" : "Ajouter un employÃ©"}
+                    {editingId ? "Modifier l'employé" : "Ajouter un employé"}
                   </h3>
                   <form
                     onSubmit={(e) =>
@@ -1463,7 +1481,17 @@ function App() {
                     }
                     className="emp-form"
                   >
-                    <EmployeeFormFields />
+                    <EmployeeFormFields
+                      form={form}
+                      setForm={setForm}
+                      file={file}
+                      setFile={setFile}
+                      previewUrl={previewUrl}
+                      setPreviewUrl={setPreviewUrl}
+                      editingId={editingId}
+                      employees={employees}
+                      cancelEdit={cancelEdit}
+                    />
                   </form>
                 </div>
                 <div className="card" style={{ marginTop: 16 }}>
@@ -1473,7 +1501,7 @@ function App() {
                         <th>Photo</th>
                         <th>Nom</th>
                         <th>Poste</th>
-                        <th>DÃ©pt</th>
+                        <th>Dépt</th>
                         <th>Contrat</th>
                         <th>Email</th>
                         <th>Actions</th>
@@ -1510,11 +1538,11 @@ function App() {
                           <td>{e.dept}</td>
                           <td>
                             <span className="contract-tag">
-                              {e.contractType || "â€”"}
+                              {e.contractType || "—"}
                             </span>
                           </td>
                           <td style={{ fontSize: 12, color: "var(--muted)" }}>
-                            {e.email || "â€”"}
+                            {e.email || "—"}
                           </td>
                           <td>
                             <button
@@ -1539,7 +1567,7 @@ function App() {
               </div>
               <div>
                 <div className="card">
-                  <h3 style={{ marginTop: 0 }}>Demandes de congÃ©</h3>
+                  <h3 style={{ marginTop: 0 }}>Demandes de congé</h3>
                   <div className="leave-list">
                     {leaves.length === 0 && (
                       <div style={{ color: "var(--muted)", fontSize: 14 }}>
@@ -1557,11 +1585,11 @@ function App() {
                         >
                           <div>
                             <div className="leave-item-dates">
-                              {l.startDate} â†’ {l.endDate}{" "}
+                              {l.startDate} → {l.endDate}{" "}
                               <span className="leave-days">({l.days}j)</span>
                             </div>
                             <div className="leave-item-reason">
-                              {l.reason} â€” Emp. #{l.employeeId}
+                              {l.reason} — Emp. #{l.employeeId}
                             </div>
                           </div>
                           <div style={{ display: "flex", gap: 6 }}>
@@ -1588,8 +1616,8 @@ function App() {
                                 className={`leave-status leave-status-${l.status}`}
                               >
                                 {l.status === "approved"
-                                  ? "âœ… ApprouvÃ©"
-                                  : "âŒ RefusÃ©"}
+                                  ? "✅ Approuvé"
+                                  : "❌ Refusé"}
                               </span>
                             )}
                           </div>
@@ -1602,13 +1630,13 @@ function App() {
             </div>
           )}
 
-          {/* â•â•â•â• ADMIN VIEW â•â•â•â• */}
+          {/* ════ ADMIN VIEW ════ */}
           {role === "admin" && (
             <div className="grid-2" style={{ marginTop: 18 }}>
               <div>
                 <div className="card">
                   <h3 style={{ marginTop: 0 }}>
-                    {editingId ? "Modifier l'employÃ©" : "Ajouter un employÃ©"}
+                    {editingId ? "Modifier l'employé" : "Ajouter un employé"}
                   </h3>
                   <form
                     onSubmit={(e) =>
@@ -1616,7 +1644,17 @@ function App() {
                     }
                     className="emp-form"
                   >
-                    <EmployeeFormFields />
+                    <EmployeeFormFields
+                      form={form}
+                      setForm={setForm}
+                      file={file}
+                      setFile={setFile}
+                      previewUrl={previewUrl}
+                      setPreviewUrl={setPreviewUrl}
+                      editingId={editingId}
+                      employees={employees}
+                      cancelEdit={cancelEdit}
+                    />
                   </form>
                 </div>
                 <div className="card" style={{ marginTop: 16 }}>
@@ -1626,7 +1664,7 @@ function App() {
                         <th>Photo</th>
                         <th>Nom</th>
                         <th>Poste</th>
-                        <th>DÃ©pt</th>
+                        <th>Dépt</th>
                         <th>Contrat</th>
                         <th>Salaire</th>
                         <th>Email</th>
@@ -1664,16 +1702,16 @@ function App() {
                           <td>{e.dept}</td>
                           <td>
                             <span className="contract-tag">
-                              {e.contractType || "â€”"}
+                              {e.contractType || "—"}
                             </span>
                           </td>
                           <td>
                             {e.salary != null && e.salary !== ""
                               ? Number(e.salary).toLocaleString("fr-FR")
-                              : "â€”"}
+                              : "—"}
                           </td>
                           <td style={{ fontSize: 12, color: "var(--muted)" }}>
-                            {e.email || "â€”"}
+                            {e.email || "—"}
                           </td>
                           <td>
                             <button
@@ -1698,7 +1736,7 @@ function App() {
               </div>
               <div>
                 <div className="card">
-                  <h3 style={{ marginTop: 0 }}>Demandes de congÃ©</h3>
+                  <h3 style={{ marginTop: 0 }}>Demandes de congé</h3>
                   <div className="leave-list">
                     {leaves.length === 0 && (
                       <div style={{ color: "var(--muted)", fontSize: 14 }}>
@@ -1716,11 +1754,11 @@ function App() {
                         >
                           <div>
                             <div className="leave-item-dates">
-                              {l.startDate} â†’ {l.endDate}{" "}
+                              {l.startDate} → {l.endDate}{" "}
                               <span className="leave-days">({l.days}j)</span>
                             </div>
                             <div className="leave-item-reason">
-                              {l.reason} â€” Emp. #{l.employeeId}
+                              {l.reason} — Emp. #{l.employeeId}
                             </div>
                           </div>
                           <div style={{ display: "flex", gap: 6 }}>
@@ -1747,8 +1785,8 @@ function App() {
                                 className={`leave-status leave-status-${l.status}`}
                               >
                                 {l.status === "approved"
-                                  ? "âœ… ApprouvÃ©"
-                                  : "âŒ RefusÃ©"}
+                                  ? "✅ Approuvé"
+                                  : "❌ Refusé"}
                               </span>
                             )}
                           </div>
