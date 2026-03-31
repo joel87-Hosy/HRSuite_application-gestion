@@ -45,6 +45,10 @@ db.serialize(() => {
     net REAL,
     details TEXT
   )`);
+
+  // Safe migrations: add columns if they don't exist yet
+  db.run("ALTER TABLE employees ADD COLUMN email TEXT", () => {});
+  db.run("ALTER TABLE employees ADD COLUMN userId INTEGER", () => {});
 });
 
 // Ensure a default admin exists for first-run convenience

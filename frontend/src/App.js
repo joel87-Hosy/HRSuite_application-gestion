@@ -1,6 +1,6 @@
 // ...existing code...
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./styles.css";
 
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
@@ -19,11 +19,14 @@ function App() {
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerError, setRegisterError] = useState("");
   const [employees, setEmployees] = useState([]);
+  const [employeeRecord, setEmployeeRecord] = useState(null);
+  const [employeeId, setEmployeeId] = useState(null);
   const [form, setForm] = useState({
     name: "",
     position: "",
     dept: "",
     salary: "",
+    email: "",
   });
   const [editingId, setEditingId] = useState(null);
   const [file, setFile] = useState(null);
@@ -33,6 +36,12 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [modal, setModal] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [leaveForm, setLeaveForm] = useState({
+    startDate: "",
+    endDate: "",
+    reason: "",
+  });
 
   // Toast helper
   function pushToast(message, type = "info", duration = 3000) {
@@ -83,6 +92,7 @@ function App() {
       setToken(data.token);
       setRole(data.role);
       setName(data.name);
+      setEmployeeId(data.employeeId || null);
       setLogin({ email: "", password: "" });
       pushToast("Connecté", "success");
     } else {
@@ -91,18 +101,85 @@ function App() {
     }
   }
 
-  // Dummy fetchEmployees for now
+  // Load data after login
+  useEffect(() => {
+    if (token && role) {
+      fetchEmployees();
+      fetchLeaves();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, role]);
+
   async function fetchEmployees() {
-    // Should fetch employees from API
-    // For now, do nothing
+    if (!token) return;
+    if (role === "employee") {
+      const res = await fetch(`${API}/employees/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEmployeeRecord(data);
+        setEmployees([data]);
+      } else {
+        setEmployeeRecord(null);
+        setEmployees([]);
+      }
+    } else {
+      const res = await fetch(`${API}/employees`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setEmployees(await res.json());
+    }
   }
 
   // Dummy handleAddEmployee/handleUpdateEmployee for now
-  function handleAddEmployee(e) {
+  async function handleAddEmployee(e) {
     e.preventDefault();
+    const data = new FormData();
+    data.append("name", form.name);
+    data.append("position", form.position);
+    data.append("dept", form.dept);
+    data.append("salary", form.salary);
+    if (form.email) data.append("email", form.email);
+    if (file) data.append("profilePicture", file);
+    const res = await fetch(`${API}/employees`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: data,
+    });
+    if (res.ok) {
+      pushToast("Employé ajouté", "success");
+      setForm({ name: "", position: "", dept: "", salary: "", email: "" });
+      setFile(null);
+      fetchEmployees();
+    } else {
+      const err = await res.json();
+      pushToast("Erreur: " + (err.message || "erreur"), "error");
+    }
   }
-  function handleUpdateEmployee(e) {
+
+  async function handleUpdateEmployee(e) {
     e.preventDefault();
+    const data = new FormData();
+    data.append("name", form.name);
+    data.append("position", form.position);
+    data.append("dept", form.dept);
+    data.append("salary", form.salary);
+    if (form.email) data.append("email", form.email);
+    if (file) data.append("profilePicture", file);
+    const res = await fetch(`${API}/employees/${editingId}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: data,
+    });
+    if (res.ok) {
+      pushToast("Employé mis à jour", "success");
+      cancelEdit();
+      fetchEmployees();
+    } else {
+      const err = await res.json();
+      pushToast("Erreur: " + (err.message || "erreur"), "error");
+    }
   }
 
   function handleEditClick(emp) {
@@ -112,6 +189,7 @@ function App() {
       position: emp.position || "",
       dept: emp.dept || "",
       salary: emp.salary || 0,
+      email: emp.email || "",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -145,12 +223,14 @@ function App() {
 
   function cancelEdit() {
     setEditingId(null);
-    setForm({ name: "", position: "", dept: "", salary: "" });
+    setForm({ name: "", position: "", dept: "", salary: "", email: "" });
     setFile(null);
   }
 
   async function fetchLeaves() {
-    const res = await fetch(`${API}/leaves`, {
+    if (!token) return;
+    const endpoint = role === "employee" ? `${API}/leaves/my` : `${API}/leaves`;
+    const res = await fetch(endpoint, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) setLeaves(await res.json());
@@ -158,12 +238,31 @@ function App() {
 
   async function requestLeave(e) {
     e.preventDefault();
+    if (!leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason) {
+      pushToast("Remplissez tous les champs", "error");
+      return;
+    }
+    const start = new Date(leaveForm.startDate);
+    const end = new Date(leaveForm.endDate);
+    const days = Math.max(
+      1,
+      Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1,
+    );
+    const empId = employeeRecord ? employeeRecord.id : employeeId;
+    if (!empId) {
+      pushToast(
+        "Aucune fiche employé liée à votre compte. Contactez le RH.",
+        "error",
+        5000,
+      );
+      return;
+    }
     const body = {
-      employeeId: 1,
-      startDate: "2026-04-01",
-      endDate: "2026-04-03",
-      days: 3,
-      reason: "Vacances",
+      employeeId: empId,
+      startDate: leaveForm.startDate,
+      endDate: leaveForm.endDate,
+      days,
+      reason: leaveForm.reason,
     };
     const res = await fetch(`${API}/leaves`, {
       method: "POST",
@@ -173,9 +272,13 @@ function App() {
       },
       body: JSON.stringify(body),
     });
-    if (res.ok) fetchLeaves();
-    if (res.ok) pushToast("Demande de congé envoyée", "success");
-    else pushToast("Erreur lors de la demande de congé", "error");
+    if (res.ok) {
+      setLeaveForm({ startDate: "", endDate: "", reason: "" });
+      fetchLeaves();
+      pushToast("Demande de congé envoyée", "success");
+    } else {
+      pushToast("Erreur lors de la demande de congé", "error");
+    }
   }
 
   async function approveLeave(id) {
@@ -209,85 +312,78 @@ function App() {
   if (!token) {
     if (showRegister) {
       return (
-        <div
-          style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "#f5f7fb",
-          }}
-        >
-          <div className="card" style={{ width: 420 }}>
-            <h2
-              style={{
-                margin: 0,
-                marginBottom: 12,
-                fontSize: 20,
-                fontWeight: 700,
-              }}
-            >
-              Créer un compte
-            </h2>
-            <form
-              onSubmit={handleRegister}
-              style={{ display: "grid", gap: 10 }}
-            >
-              <input
-                className="input"
-                value={register.name}
-                onChange={(e) =>
-                  setRegister({ ...register, name: e.target.value })
-                }
-                placeholder="Nom complet"
-              />
-              <input
-                className="input"
-                value={register.email}
-                onChange={(e) =>
-                  setRegister({ ...register, email: e.target.value })
-                }
-                type="email"
-                placeholder="Email"
-              />
-              <input
-                className="input"
-                value={register.password}
-                onChange={(e) =>
-                  setRegister({ ...register, password: e.target.value })
-                }
-                type="password"
-                placeholder="Mot de passe"
-              />
-              <select
-                className="input"
-                value={register.role}
-                onChange={(e) =>
-                  setRegister({ ...register, role: e.target.value })
-                }
-              >
-                <option value="employee">Employé</option>
-                <option value="manager">Manager</option>
-                <option value="admin">RH</option>
-              </select>
+        <div className="auth-bg">
+          <div className="auth-card">
+            <div className="auth-logo">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                <rect width="36" height="36" rx="10" fill="#2563eb" />
+                <path
+                  d="M10 26v-2a6 6 0 0112 0v2"
+                  stroke="#fff"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                />
+                <circle cx="18" cy="14" r="4" stroke="#fff" strokeWidth="2.2" />
+              </svg>
+              <span className="auth-logo-text">HRSuite</span>
+            </div>
+            <h2 className="auth-title">Créer un compte</h2>
+            <p className="auth-subtitle">Rejoignez votre équipe RH</p>
+            <form onSubmit={handleRegister} className="auth-form">
+              <div className="auth-field">
+                <label className="auth-label">Nom complet</label>
+                <input
+                  className="auth-input"
+                  value={register.name}
+                  onChange={(e) =>
+                    setRegister({ ...register, name: e.target.value })
+                  }
+                  placeholder="Jean Dupont"
+                  autoComplete="name"
+                />
+              </div>
+              <div className="auth-field">
+                <label className="auth-label">Adresse email</label>
+                <input
+                  className="auth-input"
+                  value={register.email}
+                  onChange={(e) =>
+                    setRegister({ ...register, email: e.target.value })
+                  }
+                  type="email"
+                  placeholder="jean@entreprise.com"
+                  autoComplete="email"
+                />
+              </div>
+              <div className="auth-field">
+                <label className="auth-label">Mot de passe</label>
+                <input
+                  className="auth-input"
+                  value={register.password}
+                  onChange={(e) =>
+                    setRegister({ ...register, password: e.target.value })
+                  }
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+              </div>
               {registerError && (
-                <div style={{ color: "red", fontSize: 13 }}>
-                  {registerError}
-                </div>
+                <div className="auth-error">{registerError}</div>
               )}
               <button
-                className="btn btn-primary"
+                className="auth-btn"
                 type="submit"
                 disabled={registerLoading}
               >
-                {registerLoading ? "Création..." : "Créer le compte"}
+                {registerLoading ? "Création en cours..." : "Créer mon compte"}
               </button>
               <button
                 type="button"
-                className="btn btn-link"
+                className="auth-link"
                 onClick={() => setShowRegister(false)}
               >
-                Retour à la connexion
+                Déjà un compte ? <strong>Se connecter</strong>
               </button>
             </form>
           </div>
@@ -302,67 +398,62 @@ function App() {
       );
     }
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#f5f7fb",
-        }}
-      >
-        <div className="card" style={{ width: 420 }}>
-          <h2
-            style={{
-              margin: 0,
-              marginBottom: 12,
-              fontSize: 20,
-              fontWeight: 700,
-            }}
-          >
-            Connexion HRSuite
-          </h2>
-          <form onSubmit={handleLogin} style={{ display: "grid", gap: 10 }}>
-            <input
-              className="input"
-              value={login.email}
-              onChange={(e) => setLogin({ ...login, email: e.target.value })}
-              type="email"
-              placeholder="Email"
-            />
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                className="input"
-                value={login.password}
-                onChange={(e) =>
-                  setLogin({ ...login, password: e.target.value })
-                }
-                type={showPassword ? "text" : "password"}
-                placeholder="Mot de passe"
-                style={{ flex: 1 }}
+      <div className="auth-bg">
+        <div className="auth-card">
+          <div className="auth-logo">
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+              <rect width="36" height="36" rx="10" fill="#2563eb" />
+              <path
+                d="M10 26v-2a6 6 0 0112 0v2"
+                stroke="#fff"
+                strokeWidth="2.2"
+                strokeLinecap="round"
               />
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setShowPassword((s) => !s)}
-                aria-label="toggle password"
-              >
-                {showPassword ? "🙈" : "👁️"}
-              </button>
+              <circle cx="18" cy="14" r="4" stroke="#fff" strokeWidth="2.2" />
+            </svg>
+            <span className="auth-logo-text">HRSuite</span>
+          </div>
+          <h2 className="auth-title">Bienvenue 👋</h2>
+          <p className="auth-subtitle">Connectez-vous à votre espace RH</p>
+          <form onSubmit={handleLogin} className="auth-form">
+            <div className="auth-field">
+              <label className="auth-label">Adresse email</label>
+              <input
+                className="auth-input"
+                value={login.email}
+                onChange={(e) => setLogin({ ...login, email: e.target.value })}
+                type="email"
+                placeholder="admin@insuite.ci"
+                autoComplete="email"
+              />
             </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <button className="btn btn-primary" type="submit">
-                Se connecter
-              </button>
+            <div className="auth-field">
+              <label className="auth-label">Mot de passe</label>
+              <div className="auth-input-wrap">
+                <input
+                  className="auth-input"
+                  value={login.password}
+                  onChange={(e) =>
+                    setLogin({ ...login, password: e.target.value })
+                  }
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="auth-eye"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label="Afficher/masquer le mot de passe"
+                >
+                  {showPassword ? "🙈" : "👁️"}
+                </button>
+              </div>
+            </div>
+            <div className="auth-forgot">
               <button
                 type="button"
-                className="btn btn-link"
+                className="auth-link-sm"
                 onClick={async () => {
                   const email = window.prompt(
                     "Entrez votre email pour réinitialiser le mot de passe",
@@ -376,11 +467,7 @@ function App() {
                     });
                     if (res.ok) {
                       const data = await res.json();
-                      pushToast(
-                        "Mot de passe réinitialisé. Vérifiez le toast pour le mot de passe temporaire.",
-                        "success",
-                        8000,
-                      );
+                      pushToast("Mot de passe réinitialisé.", "success", 8000);
                       setTimeout(
                         () =>
                           alert(
@@ -392,27 +479,27 @@ function App() {
                     } else {
                       const err = await res.json();
                       pushToast(
-                        "Erreur réinitialisation: " + (err.message || "erreur"),
+                        "Erreur: " + (err.message || "erreur"),
                         "error",
                       );
                     }
                   } catch (e) {
-                    pushToast(
-                      "Erreur réseau lors de la réinitialisation",
-                      "error",
-                    );
+                    pushToast("Erreur réseau", "error");
                   }
                 }}
               >
                 Mot de passe oublié ?
               </button>
             </div>
+            <button className="auth-btn" type="submit">
+              Se connecter
+            </button>
             <button
               type="button"
-              className="btn btn-link"
+              className="auth-link"
               onClick={() => setShowRegister(true)}
             >
-              Créer un compte
+              Pas encore de compte ? <strong>Créer un compte</strong>
             </button>
           </form>
         </div>
@@ -430,7 +517,24 @@ function App() {
   // Interface principale après connexion
   return (
     <div className="app">
-      <aside className="sidebar">
+      {/* Barre mobile avec hamburger */}
+      <div className="mobile-topbar">
+        <div className="brand">HRSuite</div>
+        <button
+          className="hamburger"
+          onClick={() => setMenuOpen(!menuOpen)}
+          aria-label="Menu"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+      {/* Overlay fond quand menu ouvert */}
+      {menuOpen && (
+        <div className="menu-overlay" onClick={() => setMenuOpen(false)} />
+      )}
+      <aside className={`sidebar${menuOpen ? " sidebar-open" : ""}`}>
         <div className="brand">HRSuite</div>
         <div className="user">Connecté: {name || "utilisateur"}</div>
         <div className="side-actions">
@@ -439,6 +543,7 @@ function App() {
             onClick={() => {
               fetchEmployees();
               fetchLeaves();
+              setMenuOpen(false);
             }}
           >
             Rafraîchir
@@ -448,6 +553,7 @@ function App() {
             onClick={() => {
               setToken(null);
               setRole(null);
+              setMenuOpen(false);
             }}
           >
             Déconnexion
@@ -470,92 +576,176 @@ function App() {
               <>
                 <div>
                   <div className="card">
-                    <h3 style={{ marginTop: 0 }}>Mes informations</h3>
-                    {employees.length > 0 ? (
-                      <table className="table">
-                        <thead>
-                          <tr>
-                            <th>Photo</th>
-                            <th>Nom</th>
-                            <th>Poste</th>
-                            <th>Dépt</th>
-                            <th>Salaire</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {employees
-                            .filter((e) => e.name === name)
-                            .map((e) => (
-                              <tr key={e.id}>
-                                <td>
-                                  {e.profileImage ? (
-                                    <img
-                                      src={`${API.replace("/api", "")}${e.profileImage}`}
-                                      alt="profile"
-                                      style={{
-                                        width: 48,
-                                        height: 48,
-                                        objectFit: "cover",
-                                        borderRadius: 8,
-                                      }}
-                                    />
-                                  ) : (
-                                    <div
-                                      style={{
-                                        width: 48,
-                                        height: 48,
-                                        background: "#f1f5f9",
-                                        borderRadius: 8,
-                                      }}
-                                    />
-                                  )}
-                                </td>
-                                <td>{e.name}</td>
-                                <td>{e.position}</td>
-                                <td>{e.dept}</td>
-                                <td>{e.salary}</td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
+                    <h3 style={{ marginTop: 0 }}>Ma fiche employé</h3>
+                    {employeeRecord ? (
+                      <div className="employee-profile">
+                        <div className="employee-profile-photo">
+                          {employeeRecord.profileImage ? (
+                            <img
+                              src={`${API.replace("/api", "")}${employeeRecord.profileImage}`}
+                              alt="profile"
+                              className="profile-photo"
+                            />
+                          ) : (
+                            <div className="profile-photo-placeholder">
+                              {employeeRecord.name
+                                ? employeeRecord.name[0].toUpperCase()
+                                : "?"}
+                            </div>
+                          )}
+                        </div>
+                        <div className="employee-profile-info">
+                          <div className="profile-name">
+                            {employeeRecord.name}
+                          </div>
+                          <div className="profile-badge">
+                            {employeeRecord.position}
+                          </div>
+                          <div className="profile-fields">
+                            <div className="profile-field">
+                              <span className="profile-field-label">
+                                Département
+                              </span>
+                              <span className="profile-field-value">
+                                {employeeRecord.dept || "—"}
+                              </span>
+                            </div>
+                            <div className="profile-field">
+                              <span className="profile-field-label">
+                                Statut
+                              </span>
+                              <span className="profile-field-value profile-status">
+                                {employeeRecord.status || "Actif"}
+                              </span>
+                            </div>
+                            <div className="profile-field">
+                              <span className="profile-field-label">
+                                Salaire
+                              </span>
+                              <span className="profile-field-value">
+                                {employeeRecord.salary
+                                  ? `${Number(employeeRecord.salary).toLocaleString("fr-FR")} FCFA`
+                                  : "—"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     ) : (
-                      <div>Aucune information trouvée.</div>
+                      <div className="profile-not-linked">
+                        <div style={{ fontSize: 36, marginBottom: 8 }}>⚠️</div>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                          Fiche non liée
+                        </div>
+                        <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                          Votre compte n&apos;est pas encore lié à une fiche
+                          employé.
+                          <br />
+                          Contactez le service RH en leur donnant votre adresse
+                          email.
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
                 <div>
                   <div className="card">
-                    <h3 style={{ marginTop: 0 }}>Mes demandes de congé</h3>
-                    <div>
+                    <h3 style={{ marginTop: 0 }}>
+                      Demande de congé / permission
+                    </h3>
+                    {!employeeRecord && (
+                      <div
+                        style={{
+                          color: "var(--danger)",
+                          fontSize: 14,
+                          marginBottom: 10,
+                        }}
+                      >
+                        Votre fiche employé doit être liée pour soumettre une
+                        demande.
+                      </div>
+                    )}
+                    <form onSubmit={requestLeave} className="leave-form">
+                      <div className="leave-form-row">
+                        <div>
+                          <label className="form-label">Date de début</label>
+                          <input
+                            className="input"
+                            type="date"
+                            value={leaveForm.startDate}
+                            onChange={(e) =>
+                              setLeaveForm({
+                                ...leaveForm,
+                                startDate: e.target.value,
+                              })
+                            }
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="form-label">Date de fin</label>
+                          <input
+                            className="input"
+                            type="date"
+                            value={leaveForm.endDate}
+                            onChange={(e) =>
+                              setLeaveForm({
+                                ...leaveForm,
+                                endDate: e.target.value,
+                              })
+                            }
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="form-label">Motif</label>
+                        <input
+                          className="input"
+                          value={leaveForm.reason}
+                          onChange={(e) =>
+                            setLeaveForm({
+                              ...leaveForm,
+                              reason: e.target.value,
+                            })
+                          }
+                          placeholder="Ex: Congés annuels, Permission..."
+                          required
+                        />
+                      </div>
                       <button
                         className="btn btn-primary"
-                        onClick={requestLeave}
+                        type="submit"
+                        disabled={!employeeRecord}
                       >
-                        Demander un congé (exemple)
+                        Envoyer la demande
                       </button>
-                      <button className="btn" onClick={fetchLeaves}>
-                        Voir demandes
-                      </button>
-                    </div>
+                    </form>
+                    <h4 style={{ marginTop: 20, marginBottom: 8 }}>
+                      Historique de mes demandes
+                    </h4>
                     <div className="leave-list">
-                      {leaves
-                        .filter((l) => true)
-                        .map((l) => (
-                          <div className="leave-item" key={l.id}>
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                              }}
-                            >
-                              <div>
-                                {l.employeeId} • {l.startDate} → {l.endDate} •{" "}
-                                <strong>{l.status}</strong>
-                              </div>
-                            </div>
+                      {leaves.length === 0 && (
+                        <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                          Aucune demande pour l&apos;instant.
+                        </div>
+                      )}
+                      {leaves.map((l) => (
+                        <div className="leave-item" key={l.id}>
+                          <div className="leave-item-dates">
+                            {l.startDate} → {l.endDate}{" "}
+                            <span className="leave-days">({l.days}j)</span>
                           </div>
-                        ))}
+                          <div className="leave-item-reason">{l.reason}</div>
+                          <div
+                            className={`leave-status leave-status-${l.status}`}
+                          >
+                            {l.status === "pending" && "⏳ En attente"}
+                            {l.status === "approved" && "✅ Approuvé"}
+                            {l.status === "rejected" && "❌ Refusé"}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -605,6 +795,15 @@ function App() {
                           setForm({ ...form, salary: e.target.value })
                         }
                         placeholder="Salaire"
+                      />
+                      <input
+                        className="input"
+                        type="email"
+                        value={form.email}
+                        onChange={(e) =>
+                          setForm({ ...form, email: e.target.value })
+                        }
+                        placeholder="Email professionnel"
                       />
                       <input
                         className="file"
@@ -671,6 +870,7 @@ function App() {
                           <th>Poste</th>
                           <th>Dépt</th>
                           <th>Salaire</th>
+                          <th>Email</th>
                           <th>Actions</th>
                         </tr>
                       </thead>
@@ -704,6 +904,9 @@ function App() {
                             <td>{e.position}</td>
                             <td>{e.dept}</td>
                             <td>{e.salary}</td>
+                            <td style={{ fontSize: 12, color: "var(--muted)" }}>
+                              {e.email || "—"}
+                            </td>
                             <td>
                               <button
                                 className="btn"
@@ -825,6 +1028,15 @@ function App() {
                         placeholder="Salaire"
                       />
                       <input
+                        className="input"
+                        type="email"
+                        value={form.email}
+                        onChange={(e) =>
+                          setForm({ ...form, email: e.target.value })
+                        }
+                        placeholder="Email professionnel"
+                      />
+                      <input
                         className="file"
                         type="file"
                         onChange={(e) => setFile(e.target.files[0])}
@@ -889,6 +1101,7 @@ function App() {
                           <th>Poste</th>
                           <th>Dépt</th>
                           <th>Salaire</th>
+                          <th>Email</th>
                           <th>Actions</th>
                         </tr>
                       </thead>
@@ -922,6 +1135,9 @@ function App() {
                             <td>{e.position}</td>
                             <td>{e.dept}</td>
                             <td>{e.salary}</td>
+                            <td style={{ fontSize: 12, color: "var(--muted)" }}>
+                              {e.email || "—"}
+                            </td>
                             <td>
                               <button
                                 className="btn"

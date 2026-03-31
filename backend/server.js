@@ -63,7 +63,14 @@ app.post("/api/register", (req, res) => {
   stmt.run(email, passwordHash, role, name || "", function (err) {
     if (err)
       return res.status(400).json({ message: "User exists or DB error", err });
-    const token = jwt.sign({ id: this.lastID, role, email }, SECRET, {
+    const userId = this.lastID;
+    // Link to employee record if email matches
+    db.run(
+      "UPDATE employees SET userId = ? WHERE email = ? AND (userId IS NULL OR userId = 0)",
+      [userId, email],
+      () => {},
+    );
+    const token = jwt.sign({ id: userId, role, email }, SECRET, {
       expiresIn: "8h",
     });
     res.json({ success: true, token });
@@ -84,7 +91,16 @@ app.post("/api/login", (req, res) => {
       SECRET,
       { expiresIn: "8h" },
     );
-    res.json({ success: true, token, role: row.role, name: row.name });
+    // Fetch linked employeeId if any
+    db.get("SELECT id FROM employees WHERE userId = ?", [row.id], (e2, emp) => {
+      res.json({
+        success: true,
+        token,
+        role: row.role,
+        name: row.name,
+        employeeId: emp ? emp.id : null,
+      });
+    });
   });
 });
 
@@ -114,6 +130,21 @@ app.post("/api/forgot-password", (req, res) => {
 });
 
 // Employees CRUD
+app.get("/api/employees/me", verifyToken, (req, res) => {
+  db.get(
+    "SELECT * FROM employees WHERE userId = ?",
+    [req.user.id],
+    (err, row) => {
+      if (err) return res.status(500).json({ message: "DB error", err });
+      if (!row)
+        return res
+          .status(404)
+          .json({ message: "No employee record linked to your account" });
+      res.json(row);
+    },
+  );
+});
+
 app.get("/api/employees", verifyToken, (req, res) => {
   db.all("SELECT * FROM employees", [], (err, rows) => {
     if (err) return res.status(500).json({ message: "DB error", err });
@@ -270,7 +301,6 @@ app.post("/api/leaves", verifyToken, (req, res) => {
 });
 
 app.get("/api/leaves", verifyToken, (req, res) => {
-  // managers can filter by managerId query
   const { managerId } = req.query;
   const sql = managerId
     ? "SELECT * FROM leaves WHERE managerId = ?"
@@ -280,6 +310,26 @@ app.get("/api/leaves", verifyToken, (req, res) => {
     if (err) return res.status(500).json({ message: "DB error", err });
     res.json(rows);
   });
+});
+
+// Returns only the leaves for the currently logged-in employee
+app.get("/api/leaves/my", verifyToken, (req, res) => {
+  db.get(
+    "SELECT id FROM employees WHERE userId = ?",
+    [req.user.id],
+    (err, emp) => {
+      if (err) return res.status(500).json({ message: "DB error", err });
+      if (!emp) return res.json([]);
+      db.all(
+        "SELECT * FROM leaves WHERE employeeId = ? ORDER BY id DESC",
+        [emp.id],
+        (e2, rows) => {
+          if (e2) return res.status(500).json({ message: "DB error", e2 });
+          res.json(rows);
+        },
+      );
+    },
+  );
 });
 
 app.put(
