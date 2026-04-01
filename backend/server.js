@@ -7,7 +7,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const db = require("./db");
 
-const SECRET = process.env.JWT_SECRET || "CHANGE_THIS_SECRET";
+const SECRET = process.env.JWT_SECRET || "CHANGE_THIS_SECRET_IN_PRODUCTION";
 
 const app = express();
 app.use(

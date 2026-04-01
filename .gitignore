@@ -13,11 +13,14 @@ backend/uploads/profiles/*
 # Build frontend
 frontend/build/
 
-# Environnement
+# Environnement (tous les fichiers .env)
 .env
-.env.local
-.env.production
+.env.*
 backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+!frontend/.env.production
 
 # Logs
 *.log
