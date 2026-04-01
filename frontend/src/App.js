@@ -309,6 +309,9 @@ function App() {
   });
   const [leaveAvailable, setLeaveAvailable] = useState(null);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [tempPassword, setTempPassword] = useState("");
 
   // Toast helper
   function pushToast(message, type = "info", duration = 3000) {
@@ -695,6 +698,25 @@ function App() {
     }
   }
 
+  async function handleForgotPassword(e) {
+    e.preventDefault();
+    if (!forgotEmail) {
+      pushToast("Entrez votre adresse email", "error");
+      return;
+    }
+    const res = await fetch(`${API}/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: forgotEmail }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setTempPassword(data.tempPassword || "");
+    } else {
+      pushToast(data.message || "Erreur lors de la réinitialisation", "error");
+    }
+  }
+
   async function fetchLeaves() {
     if (!token) return;
     const endpoint = role === "employee" ? `${API}/leaves/my` : `${API}/leaves`;
@@ -940,39 +962,7 @@ function App() {
               <button
                 type="button"
                 className="auth-link-sm"
-                onClick={async () => {
-                  const email = window.prompt(
-                    "Entrez votre email pour réinitialiser le mot de passe",
-                  );
-                  if (!email) return;
-                  try {
-                    const res = await fetch(`${API}/forgot-password`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ email }),
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      pushToast("Mot de passe réinitialisé.", "success", 8000);
-                      setTimeout(
-                        () =>
-                          alert(
-                            "Mot de passe temporaire: " +
-                              (data.tempPassword || "—"),
-                          ),
-                        50,
-                      );
-                    } else {
-                      const err = await res.json();
-                      pushToast(
-                        "Erreur: " + (err.message || "erreur"),
-                        "error",
-                      );
-                    }
-                  } catch (e) {
-                    pushToast("Erreur réseau", "error");
-                  }
-                }}
+                onClick={() => setShowForgotModal(true)}
               >
                 Mot de passe oublié ?
               </button>
@@ -2269,6 +2259,75 @@ function App() {
               <button
                 className="btn btn-ghost"
                 onClick={() => setShowLeaveModal(false)}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div className="modal-overlay" onClick={() => { setShowForgotModal(false); setForgotEmail(""); setTempPassword(""); }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>🔑 Mot de passe oublié</h2>
+              <button
+                className="modal-close"
+                onClick={() => { setShowForgotModal(false); setForgotEmail(""); setTempPassword(""); }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              {!tempPassword ? (
+                <form onSubmit={handleForgotPassword} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                    Entrez votre adresse email pour recevoir un mot de passe temporaire.
+                  </p>
+                  <div>
+                    <label className="form-label">Adresse email</label>
+                    <input
+                      className="auth-input"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="votre@email.com"
+                      autoComplete="email"
+                      required
+                    />
+                  </div>
+                  <button className="btn btn-primary" type="submit">
+                    Réinitialiser le mot de passe
+                  </button>
+                </form>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center", textAlign: "center" }}>
+                  <div style={{ fontSize: 36 }}>✅</div>
+                  <p style={{ margin: 0, fontWeight: 600 }}>Mot de passe temporaire :</p>
+                  <div style={{
+                    padding: "12px 24px",
+                    background: "var(--bg-hover)",
+                    borderRadius: 8,
+                    fontFamily: "monospace",
+                    fontSize: 20,
+                    fontWeight: 700,
+                    letterSpacing: 2,
+                    color: "var(--primary)"
+                  }}>
+                    {tempPassword}
+                  </div>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+                    Connectez-vous avec ce mot de passe puis changez-le dans les paramètres.
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-ghost"
+                onClick={() => { setShowForgotModal(false); setForgotEmail(""); setTempPassword(""); }}
               >
                 Fermer
               </button>
