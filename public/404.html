@@ -2,27 +2,17 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>HRSuite - Redirect</title>
+    <title>HRSuite</title>
     <script type="text/javascript">
       // Single Page Apps for GitHub Pages
-      // MIT License
-      // https://github.com/rafgraph/spa-github-pages
-
-      var segmentCount = 0;
       var l = window.location;
       l.replace(
-        l.protocol +
-          "//" +
-          l.hostname +
-          (l.port ? ":" + l.port : "") +
-          "/HRSuite_application-gestion/?p=/" +
-          l.pathname
-            .split("/")
-            .slice(0, 1 + segmentCount)
-            .join("/") +
-          "&q=" +
-          l.search.slice(1).replace(/&/g, "~and~") +
-          l.hash,
+        l.protocol + "//" +
+        l.hostname + (l.port ? ":" + l.port : "") +
+        "/HRSuite_application-gestion/?" +
+        l.pathname.slice(1).replace(/\//g, "~1") +
+        (l.search ? "&" + l.search.slice(1) : "") +
+        l.hash
       );
     </script>
   </head>

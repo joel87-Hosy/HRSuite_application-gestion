@@ -26,6 +26,7 @@ jobs:
         run: npm run build
         env:
           REACT_APP_API_URL: https://hrsuite-backend-rnrm.onrender.com/api
+          PUBLIC_URL: /HRSuite_application-gestion
           CI: false
 
       - name: Deploy to GitHub Pages
