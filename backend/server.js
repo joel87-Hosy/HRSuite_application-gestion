@@ -17,6 +17,17 @@ app.use(
   }),
 );
 app.use(express.json());
+
+// Add no-cache headers to all GET requests
+app.use((req, res, next) => {
+  if (req.method === "GET") {
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+  }
+  next();
+});
+
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Upload config
@@ -131,8 +142,6 @@ app.post("/api/forgot-password", (req, res) => {
 
 // Employees CRUD
 app.get("/api/employees/me", verifyToken, (req, res) => {
-  res.set("Cache-Control", "no-cache, no-store, must-revalidate");
-  res.set("Pragma", "no-cache");
   db.get(
     "SELECT * FROM employees WHERE userId = ?",
     [req.user.id],
@@ -148,8 +157,6 @@ app.get("/api/employees/me", verifyToken, (req, res) => {
 });
 
 app.get("/api/employees", verifyToken, (req, res) => {
-  res.set("Cache-Control", "no-cache, no-store, must-revalidate");
-  res.set("Pragma", "no-cache");
   db.all("SELECT * FROM employees", [], (err, rows) => {
     if (err) return res.status(500).json({ message: "DB error", err });
     res.json(rows);

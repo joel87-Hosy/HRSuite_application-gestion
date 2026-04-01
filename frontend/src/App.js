@@ -349,6 +349,21 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, role]);
 
+  // Auto-refresh employees on all devices (every 30 seconds for RH, 60 for employees)
+  useEffect(() => {
+    if (!token || !role) return;
+
+    const interval = setInterval(() => {
+      fetchEmployees();
+      if (role === "employee") {
+        fetchAllEmployees();
+      }
+    }, role === "rh" || role === "admin" ? 30000 : 60000);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, role]);
+
   async function fetchEmployees() {
     if (!token) return;
     if (role === "employee") {
@@ -356,7 +371,7 @@ function App() {
         headers: {
           Authorization: `Bearer ${token}`,
           "Cache-Control": "no-cache",
-          "Pragma": "no-cache"
+          Pragma: "no-cache",
         },
       });
       if (res.ok) {
@@ -377,7 +392,7 @@ function App() {
         headers: {
           Authorization: `Bearer ${token}`,
           "Cache-Control": "no-cache",
-          "Pragma": "no-cache"
+          Pragma: "no-cache",
         },
       });
       if (res.ok) setEmployees(await res.json());
@@ -386,21 +401,33 @@ function App() {
 
   async function fetchNotifications() {
     const res = await fetch(`${API}/notifications`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
+      },
     });
     if (res.ok) setNotifications(await res.json());
   }
 
   async function fetchContracts() {
     const res = await fetch(`${API}/contracts/my`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
+      },
     });
     if (res.ok) setContracts(await res.json());
   }
 
   async function fetchAllEmployees() {
     const res = await fetch(`${API}/employees`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
+      },
     });
     if (res.ok) setAllEmployees(await res.json());
   }
@@ -576,7 +603,11 @@ function App() {
     if (!token) return;
     const endpoint = role === "employee" ? `${API}/leaves/my` : `${API}/leaves`;
     const res = await fetch(endpoint, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
+      },
     });
     if (res.ok) setLeaves(await res.json());
   }
