@@ -5,11 +5,20 @@ const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const http = require("http");
+const socketIo = require("socket.io");
 const db = require("./db");
 
 const SECRET = process.env.JWT_SECRET || "CHANGE_THIS_SECRET_IN_PRODUCTION";
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: ["http://localhost:3000", "https://joel87-hosy.github.io"],
+    credentials: true,
+  },
+});
 app.use(
   cors({
     origin: ["http://localhost:3000", "https://joel87-hosy.github.io"],
@@ -29,6 +38,20 @@ app.use((req, res, next) => {
 });
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// WebSocket connection handler
+io.on("connection", (socket) => {
+  console.log("Client connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
+});
+
+// Broadcast helper for employees updates
+function broadcastEmployeeUpdate(event, data) {
+  io.emit(event, data);
+}
 
 // Upload config
 const storage = multer.diskStorage({
@@ -241,6 +264,8 @@ app.post(
           // Small delay to ensure Turso replication (cloud DB latency)
           setTimeout(() => {
             res.status(201).json({ message: "Employé ajouté", data: row });
+            // Broadcast to all connected clients
+            broadcastEmployeeUpdate("employeeAdded", row);
           }, 100);
         });
       },
@@ -377,6 +402,8 @@ app.put(
       db.get("SELECT * FROM employees WHERE id = ?", [id], (e, row) => {
         if (e) return res.status(500).json({ message: "DB error", e });
         res.json({ message: "Updated", data: row });
+        // Broadcast to all connected clients
+        broadcastEmployeeUpdate("employeeUpdated", row);
       });
     });
   },
@@ -391,6 +418,8 @@ app.delete(
     db.run("DELETE FROM employees WHERE id = ?", [id], function (err) {
       if (err) return res.status(500).json({ message: "DB delete error", err });
       res.json({ message: "Deleted" });
+      // Broadcast to all connected clients
+      broadcastEmployeeUpdate("employeeDeleted", { id: parseInt(id) });
     });
   },
 );
@@ -681,4 +710,4 @@ app.post(
 );
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Serveur backend sur le port ${PORT}`));
+server.listen(PORT, () => console.log(`Serveur backend sur le port ${PORT}`));

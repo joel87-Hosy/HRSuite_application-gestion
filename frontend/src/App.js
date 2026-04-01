@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import io from "socket.io-client";
 import "./styles.css";
 
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const CONTRACT_TYPES = [
   "CDI",
@@ -334,6 +336,38 @@ function App() {
       pushToast(err.message || "Erreur de connexion", "error");
     }
   }
+
+  // WebSocket real-time sync
+  useEffect(() => {
+    const socket = io(SOCKET_URL, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+    });
+
+    socket.on("employeeAdded", (employee) => {
+      console.log("New employee added:", employee);
+      setEmployees((prev) => [...prev, employee]);
+    });
+
+    socket.on("employeeUpdated", (employee) => {
+      console.log("Employee updated:", employee);
+      setEmployees((prev) =>
+        prev.map((emp) => (emp.id === employee.id ? employee : emp))
+      );
+      if (employeeRecord && employeeRecord.id === employee.id) {
+        setEmployeeRecord(employee);
+      }
+    });
+
+    socket.on("employeeDeleted", (data) => {
+      console.log("Employee deleted:", data.id);
+      setEmployees((prev) => prev.filter((emp) => emp.id !== data.id));
+    });
+
+    return () => socket.disconnect();
+  }, []);
 
   // Load data after login
   useEffect(() => {
