@@ -20,8 +20,13 @@ const io = socketIo(server, {
       "https://joel87-hosy.github.io",
       "https://joel87-hosy.github.io/HRSuite_application-gestion",
     ],
+    methods: ["GET", "POST"],
     credentials: true,
   },
+  transports: ["polling", "websocket"],
+  allowEIO3: true,
+  pingInterval: 25000,
+  pingTimeout: 60000,
 });
 app.use(
   cors({
@@ -483,7 +488,10 @@ app.post("/api/leaves", verifyToken, (req, res) => {
           let permissionUsed = 0;
 
           (leaves || []).forEach((leave) => {
-            if (leave.leaveType === "Congé annuel" || leave.leaveType === "Congé maladie") {
+            if (
+              leave.leaveType === "Congé annuel" ||
+              leave.leaveType === "Congé maladie"
+            ) {
               annualUsed += leave.days || 0;
             } else if (leave.leaveType === "Permission exceptionnelle") {
               permissionUsed += leave.days || 0;
@@ -522,9 +530,15 @@ app.post("/api/leaves", verifyToken, (req, res) => {
             interimFunction || null,
             interimEmployeeId || null,
             function (err) {
-              if (err) return res.status(500).json({ message: "DB insert error", err });
-              db.get("SELECT * FROM leaves WHERE id = ?", [this.lastID], (e, row) =>
-                res.status(201).json({ data: row, message: "Demande créée" }),
+              if (err)
+                return res
+                  .status(500)
+                  .json({ message: "DB insert error", err });
+              db.get(
+                "SELECT * FROM leaves WHERE id = ?",
+                [this.lastID],
+                (e, row) =>
+                  res.status(201).json({ data: row, message: "Demande créée" }),
               );
             },
           );
@@ -603,7 +617,10 @@ app.put(
         );
         res.json({ message: "Approved" });
         // Broadcast leave status change to all clients
-        broadcastEmployeeUpdate("leaveStatusChanged", { leaveId: parseInt(id), status: "approved" });
+        broadcastEmployeeUpdate("leaveStatusChanged", {
+          leaveId: parseInt(id),
+          status: "approved",
+        });
       },
     );
   },

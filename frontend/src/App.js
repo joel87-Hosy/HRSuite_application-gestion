@@ -371,10 +371,16 @@ function App() {
   // WebSocket real-time sync
   useEffect(() => {
     const socket = io(SOCKET_URL, {
+      transports: ["polling", "websocket"],
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
+      reconnectionDelay: 3000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: 3,
+      timeout: 20000,
+    });
+
+    socket.on("connect_error", () => {
+      // Silent - fallback to polling interval
     });
 
     socket.on("employeeAdded", (employee) => {
