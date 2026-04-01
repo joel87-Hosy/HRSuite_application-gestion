@@ -4,6 +4,18 @@ import App from "./App";
 import "./index.css";
 import reportWebVitals from "./reportWebVitals";
 
+// Handle DOM errors caused by browser extensions (Kaspersky, Grammarly, etc.)
+window.addEventListener("error", (event) => {
+  if (
+    event.message &&
+    (event.message.includes("removeChild") ||
+      event.message.includes("is not a child"))
+  ) {
+    event.preventDefault();
+    window.location.reload();
+  }
+});
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -14,6 +26,10 @@ class ErrorBoundary extends React.Component {
   }
   componentDidCatch(error, info) {
     console.error("App error:", error, info);
+    // Auto-reload on DOM errors caused by extensions
+    if (error.message && error.message.includes("removeChild")) {
+      setTimeout(() => window.location.reload(), 1000);
+    }
   }
   render() {
     if (this.state.hasError) {
