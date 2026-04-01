@@ -131,6 +131,8 @@ app.post("/api/forgot-password", (req, res) => {
 
 // Employees CRUD
 app.get("/api/employees/me", verifyToken, (req, res) => {
+  res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.set("Pragma", "no-cache");
   db.get(
     "SELECT * FROM employees WHERE userId = ?",
     [req.user.id],
@@ -146,6 +148,8 @@ app.get("/api/employees/me", verifyToken, (req, res) => {
 });
 
 app.get("/api/employees", verifyToken, (req, res) => {
+  res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.set("Pragma", "no-cache");
   db.all("SELECT * FROM employees", [], (err, rows) => {
     if (err) return res.status(500).json({ message: "DB error", err });
     res.json(rows);
@@ -227,7 +231,10 @@ app.post(
           );
         }
         db.get("SELECT * FROM employees WHERE id = ?", [newId], (e, row) => {
-          res.status(201).json({ message: "Employé ajouté", data: row });
+          // Small delay to ensure Turso replication (cloud DB latency)
+          setTimeout(() => {
+            res.status(201).json({ message: "Employé ajouté", data: row });
+          }, 100);
         });
       },
     );

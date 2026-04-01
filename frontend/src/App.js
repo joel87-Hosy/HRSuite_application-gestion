@@ -353,7 +353,11 @@ function App() {
     if (!token) return;
     if (role === "employee") {
       const res = await fetch(`${API}/employees/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache"
+        },
       });
       if (res.ok) {
         const data = await res.json();
@@ -370,7 +374,11 @@ function App() {
       }
     } else {
       const res = await fetch(`${API}/employees`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache"
+        },
       });
       if (res.ok) setEmployees(await res.json());
     }
