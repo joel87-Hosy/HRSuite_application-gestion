@@ -278,6 +278,8 @@ function App() {
     next: "",
     confirm: "",
   });
+  const [leaveAvailable, setLeaveAvailable] = useState(null);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   // Toast helper
   function pushToast(message, type = "info", duration = 3000) {
@@ -366,6 +368,12 @@ function App() {
       setEmployees((prev) => prev.filter((emp) => emp.id !== data.id));
     });
 
+    socket.on("leaveStatusChanged", (data) => {
+      console.log("Leave status changed:", data);
+      fetchLeaveAvailable();
+      fetchLeaves();
+    });
+
     return () => socket.disconnect();
   }, []);
 
@@ -378,6 +386,7 @@ function App() {
         fetchNotifications();
         fetchContracts();
         fetchAllEmployees();
+        fetchLeaveAvailable();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -453,6 +462,21 @@ function App() {
       },
     });
     if (res.ok) setContracts(await res.json());
+  }
+
+  async function fetchLeaveAvailable() {
+    if (!token) return;
+    const res = await fetch(`${API}/leaves/available`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setLeaveAvailable(data);
+    }
   }
 
   async function fetchAllEmployees() {
@@ -1139,18 +1163,36 @@ function App() {
               {empTab === "home" && (
                 <div className="emp-home">
                   <div className="emp-stats-row">
-                    <div className="emp-stat-card">
+                    <div
+                      className="emp-stat-card"
+                      onClick={() => {
+                        fetchLeaveAvailable();
+                        setShowLeaveModal(true);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
                       <div className="emp-stat-icon">🏖️</div>
-                      <div className="emp-stat-value">52</div>
+                      <div className="emp-stat-value">
+                        {leaveAvailable?.annualLeaveAvailable || 22}
+                      </div>
                       <div className="emp-stat-label">
-                        Jours congé autorisés
+                        Jours congé disponibles
                       </div>
                     </div>
-                    <div className="emp-stat-card">
+                    <div
+                      className="emp-stat-card"
+                      onClick={() => {
+                        fetchLeaveAvailable();
+                        setShowLeaveModal(true);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
                       <div className="emp-stat-icon">📋</div>
-                      <div className="emp-stat-value">10</div>
+                      <div className="emp-stat-value">
+                        {leaveAvailable?.permissionDaysAvailable || 5}
+                      </div>
                       <div className="emp-stat-label">
-                        Permissions autorisées
+                        Permissions disponibles
                       </div>
                     </div>
                     <div className="emp-stat-card">
@@ -2062,6 +2104,138 @@ function App() {
           </div>
         </div>
       ) : null}
+
+      {/* Leave Available Modal */}
+      {showLeaveModal && leaveAvailable && (
+        <div className="modal-overlay" onClick={() => setShowLeaveModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>📊 Détail de vos jours disponibles</h2>
+              <button
+                className="modal-close"
+                onClick={() => setShowLeaveModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ marginTop: 0, color: "var(--primary)" }}>
+                  🏖️ Congés annuels
+                </h3>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                  <div
+                    style={{
+                      padding: 12,
+                      background: "var(--bg-hover)",
+                      borderRadius: 6,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                      Autorisés
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 600 }}>
+                      {leaveAvailable.annualLeaveAllowed}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: 12,
+                      background: "var(--bg-hover)",
+                      borderRadius: 6,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                      Utilisés
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 600, color: "var(--warning)" }}>
+                      {leaveAvailable.annualLeaveUsed}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: 12,
+                      background: "var(--bg-hover)",
+                      borderRadius: 6,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                      Disponibles
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 600, color: "var(--success)" }}>
+                      {leaveAvailable.annualLeaveAvailable}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ marginTop: 0, color: "var(--primary)" }}>
+                  📋 Permissions exceptionnelles
+                </h3>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                  <div
+                    style={{
+                      padding: 12,
+                      background: "var(--bg-hover)",
+                      borderRadius: 6,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                      Autorisées
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 600 }}>
+                      {leaveAvailable.permissionDaysAllowed}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: 12,
+                      background: "var(--bg-hover)",
+                      borderRadius: 6,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                      Utilisées
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 600, color: "var(--warning)" }}>
+                      {leaveAvailable.permissionDaysUsed}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: 12,
+                      background: "var(--bg-hover)",
+                      borderRadius: 6,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                      Disponibles
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 600, color: "var(--success)" }}>
+                      {leaveAvailable.permissionDaysAvailable}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-ghost"
+                onClick={() => setShowLeaveModal(false)}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

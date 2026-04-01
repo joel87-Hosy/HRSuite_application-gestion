@@ -530,6 +530,8 @@ app.put(
           },
         );
         res.json({ message: "Approved" });
+        // Broadcast leave status change to all clients
+        broadcastEmployeeUpdate("leaveStatusChanged", { leaveId: parseInt(id), status: "approved" });
       },
     );
   },
