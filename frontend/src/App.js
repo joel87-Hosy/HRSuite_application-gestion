@@ -3,7 +3,7 @@ import io from "socket.io-client";
 import "./styles.css";
 
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
-const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const SOCKET_URL = (process.env.REACT_APP_API_URL || "http://localhost:5000/api").replace("/api", "");
 
 const CONTRACT_TYPES = [
   "CDI",

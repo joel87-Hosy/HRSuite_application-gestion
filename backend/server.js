@@ -15,7 +15,11 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:3000", "https://joel87-hosy.github.io"],
+    origin: [
+      "http://localhost:3000",
+      "https://joel87-hosy.github.io",
+      "https://joel87-hosy.github.io/HRSuite_application-gestion",
+    ],
     credentials: true,
   },
 });
