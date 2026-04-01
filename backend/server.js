@@ -318,6 +318,8 @@ app.put(
       phone,
       address,
       gender,
+      annualLeaveAllowed,
+      permissionDaysAllowed,
     } = req.body;
     const profileImage = req.file
       ? `/uploads/profiles/${req.file.filename}`
@@ -381,6 +383,14 @@ app.put(
       updates.push("profileImage = ?");
       params.push(profileImage);
     }
+    if (annualLeaveAllowed !== undefined) {
+      updates.push("annualLeaveAllowed = ?");
+      params.push(parseInt(annualLeaveAllowed) || 22);
+    }
+    if (permissionDaysAllowed !== undefined) {
+      updates.push("permissionDaysAllowed = ?");
+      params.push(parseInt(permissionDaysAllowed) || 5);
+    }
     if (updates.length === 0)
       return res.status(400).json({ message: "No fields to update" });
     params.push(id);
@@ -438,25 +448,83 @@ app.post("/api/leaves", verifyToken, (req, res) => {
     interimFunction,
     interimEmployeeId,
   } = req.body;
-  const stmt = db.prepare(
-    "INSERT INTO leaves (employeeId, startDate, endDate, days, reason, status, managerId, leaveType, interimName, interimFunction, interimEmployeeId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-  );
-  stmt.run(
-    employeeId,
-    startDate,
-    endDate,
-    days,
-    reason,
-    "pending",
-    managerId || null,
-    leaveType || null,
-    interimName || null,
-    interimFunction || null,
-    interimEmployeeId || null,
-    function (err) {
-      if (err) return res.status(500).json({ message: "DB insert error", err });
-      db.get("SELECT * FROM leaves WHERE id = ?", [this.lastID], (e, row) =>
-        res.status(201).json({ data: row }),
+
+  // Validate required fields
+  if (!employeeId || !startDate || !endDate || !days || !leaveType) {
+    return res.status(400).json({ message: "Missing required fields" });
+  }
+
+  const daysRequested = parseInt(days) || 0;
+
+  // Get employee's allowed days
+  db.get(
+    "SELECT annualLeaveAllowed, permissionDaysAllowed FROM employees WHERE id = ?",
+    [employeeId],
+    (err, emp) => {
+      if (err) return res.status(500).json({ message: "DB error", err });
+      if (!emp) return res.status(404).json({ message: "Employee not found" });
+
+      const annualAllowed = emp.annualLeaveAllowed || 22;
+      const permissionAllowed = emp.permissionDaysAllowed || 5;
+
+      // Get used days for approved/pending leaves
+      db.all(
+        `SELECT leaveType, days FROM leaves
+         WHERE employeeId = ? AND status IN ('approved', 'pending')`,
+        [employeeId],
+        (e2, leaves) => {
+          if (e2) return res.status(500).json({ message: "DB error", e2 });
+
+          let annualUsed = 0;
+          let permissionUsed = 0;
+
+          (leaves || []).forEach((leave) => {
+            if (leave.leaveType === "Congé annuel" || leave.leaveType === "Congé maladie") {
+              annualUsed += leave.days || 0;
+            } else if (leave.leaveType === "Permission exceptionnelle") {
+              permissionUsed += leave.days || 0;
+            }
+          });
+
+          let availableDays = 0;
+
+          if (leaveType === "Congé annuel" || leaveType === "Congé maladie") {
+            availableDays = Math.max(0, annualAllowed - annualUsed);
+          } else if (leaveType === "Permission exceptionnelle") {
+            availableDays = Math.max(0, permissionAllowed - permissionUsed);
+          }
+
+          // Check if enough days available
+          if (daysRequested > availableDays) {
+            return res.status(400).json({
+              message: `Pas assez de jours disponibles. Vous avez ${availableDays} jour(s) disponible(s) mais en demandez ${daysRequested}.`,
+            });
+          }
+
+          // Create the leave request
+          const stmt = db.prepare(
+            "INSERT INTO leaves (employeeId, startDate, endDate, days, reason, status, managerId, leaveType, interimName, interimFunction, interimEmployeeId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          );
+          stmt.run(
+            employeeId,
+            startDate,
+            endDate,
+            daysRequested,
+            reason,
+            "pending",
+            managerId || null,
+            leaveType || null,
+            interimName || null,
+            interimFunction || null,
+            interimEmployeeId || null,
+            function (err) {
+              if (err) return res.status(500).json({ message: "DB insert error", err });
+              db.get("SELECT * FROM leaves WHERE id = ?", [this.lastID], (e, row) =>
+                res.status(201).json({ data: row, message: "Demande créée" }),
+              );
+            },
+          );
+        },
       );
     },
   );

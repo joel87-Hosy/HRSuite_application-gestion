@@ -165,6 +165,33 @@ function EmployeeFormFields({
         />
       </div>
       <div className="form-section-title" style={{ marginTop: 16 }}>
+        Congés et permissions
+      </div>
+      <div className="form-row-2">
+        <div>
+          <label className="form-label">Jours de congé annuel autorisés</label>
+          <input
+            className="input"
+            type="number"
+            value={form.annualLeaveAllowed || 22}
+            onChange={(e) => setForm({ ...form, annualLeaveAllowed: parseInt(e.target.value) || 22 })}
+            min="0"
+            max="120"
+          />
+        </div>
+        <div>
+          <label className="form-label">Jours de permission autorisés</label>
+          <input
+            className="input"
+            type="number"
+            value={form.permissionDaysAllowed || 5}
+            onChange={(e) => setForm({ ...form, permissionDaysAllowed: parseInt(e.target.value) || 5 })}
+            min="0"
+            max="30"
+          />
+        </div>
+      </div>
+      <div className="form-section-title" style={{ marginTop: 16 }}>
         Photo de profil
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -242,6 +269,8 @@ function App() {
     phone: "",
     address: "",
     gender: "",
+    annualLeaveAllowed: 22,
+    permissionDaysAllowed: 5,
   });
   const [editingId, setEditingId] = useState(null);
   const [file, setFile] = useState(null);
@@ -512,6 +541,8 @@ function App() {
       phone: "",
       address: "",
       gender: "",
+      annualLeaveAllowed: 22,
+      permissionDaysAllowed: 5,
     });
     setFile(null);
     setPreviewUrl(null);
@@ -575,6 +606,8 @@ function App() {
       phone: emp.phone || "",
       address: emp.address || "",
       gender: emp.gender || "",
+      annualLeaveAllowed: emp.annualLeaveAllowed || 22,
+      permissionDaysAllowed: emp.permissionDaysAllowed || 5,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -721,9 +754,11 @@ function App() {
         interimEmployeeId: "",
       });
       fetchLeaves();
+      fetchLeaveAvailable();
       pushToast("Demande de congé envoyée", "success");
     } else {
-      pushToast("Erreur lors de la demande de congé", "error");
+      const err = await res.json();
+      pushToast(err.message || "Erreur lors de la demande de congé", "error", 5000);
     }
   }
 
