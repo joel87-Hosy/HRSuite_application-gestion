@@ -83,6 +83,8 @@ function convertRows(resultSet) {
     "ALTER TABLE employees ADD COLUMN phone TEXT",
     "ALTER TABLE employees ADD COLUMN address TEXT",
     "ALTER TABLE employees ADD COLUMN gender TEXT",
+    "ALTER TABLE employees ADD COLUMN annualLeaveAllowed INTEGER DEFAULT 22",
+    "ALTER TABLE employees ADD COLUMN permissionDaysAllowed INTEGER DEFAULT 5",
     "ALTER TABLE leaves ADD COLUMN leaveType TEXT",
     "ALTER TABLE leaves ADD COLUMN interimName TEXT",
     "ALTER TABLE leaves ADD COLUMN interimFunction TEXT",
