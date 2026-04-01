@@ -368,8 +368,11 @@ function App() {
     }
   }
 
-  // WebSocket real-time sync
+  // WebSocket real-time sync (only on localhost, polling handles production)
   useEffect(() => {
+    const isLocal = window.location.hostname === "localhost";
+    if (!isLocal) return; // On production, polling interval handles sync
+
     const socket = io(SOCKET_URL, {
       transports: ["polling", "websocket"],
       reconnection: true,
@@ -384,12 +387,10 @@ function App() {
     });
 
     socket.on("employeeAdded", (employee) => {
-      console.log("New employee added:", employee);
       setEmployees((prev) => [...prev, employee]);
     });
 
     socket.on("employeeUpdated", (employee) => {
-      console.log("Employee updated:", employee);
       setEmployees((prev) =>
         prev.map((emp) => (emp.id === employee.id ? employee : emp))
       );
@@ -399,12 +400,10 @@ function App() {
     });
 
     socket.on("employeeDeleted", (data) => {
-      console.log("Employee deleted:", data.id);
       setEmployees((prev) => prev.filter((emp) => emp.id !== data.id));
     });
 
-    socket.on("leaveStatusChanged", (data) => {
-      console.log("Leave status changed:", data);
+    socket.on("leaveStatusChanged", () => {
       fetchLeaveAvailable();
       fetchLeaves();
     });
