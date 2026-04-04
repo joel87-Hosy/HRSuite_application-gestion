@@ -63,6 +63,18 @@ function convertRows(resultSet) {
        createdAt TEXT DEFAULT (datetime('now')),
        FOREIGN KEY(userId) REFERENCES users(id)
      )`,
+    `CREATE TABLE IF NOT EXISTS attendance (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+       employeeId INTEGER NOT NULL,
+       date TEXT NOT NULL,
+       status TEXT NOT NULL CHECK(status IN ('PRESENT', 'ABSENT')),
+       hoursWorked REAL DEFAULT 0,
+       markedBy INTEGER,
+       createdAt TEXT DEFAULT (datetime('now')),
+       UNIQUE(employeeId, date),
+       FOREIGN KEY(employeeId) REFERENCES employees(id),
+       FOREIGN KEY(markedBy) REFERENCES users(id)
+      )`,
   ];
 
   for (const sql of tables) {

@@ -3,7 +3,9 @@ import io from "socket.io-client";
 import "./styles.css";
 
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
-const SOCKET_URL = (process.env.REACT_APP_API_URL || "http://localhost:5000/api").replace("/api", "");
+const SOCKET_URL = (
+  process.env.REACT_APP_API_URL || "http://localhost:5000/api"
+).replace("/api", "");
 
 const CONTRACT_TYPES = [
   "CDI",
@@ -174,7 +176,12 @@ function EmployeeFormFields({
             className="input"
             type="number"
             value={form.annualLeaveAllowed || 22}
-            onChange={(e) => setForm({ ...form, annualLeaveAllowed: parseInt(e.target.value) || 22 })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                annualLeaveAllowed: parseInt(e.target.value) || 22,
+              })
+            }
             min="0"
             max="120"
           />
@@ -185,7 +192,12 @@ function EmployeeFormFields({
             className="input"
             type="number"
             value={form.permissionDaysAllowed || 5}
-            onChange={(e) => setForm({ ...form, permissionDaysAllowed: parseInt(e.target.value) || 5 })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                permissionDaysAllowed: parseInt(e.target.value) || 5,
+              })
+            }
             min="0"
             max="30"
           />
@@ -277,6 +289,30 @@ function App() {
   const [login, setLogin] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [leaves, setLeaves] = useState([]);
+  const [attendanceForm, setAttendanceForm] = useState({
+    employeeId: "",
+    date: new Date().toISOString().slice(0, 10),
+    status: "PRESENT",
+    hoursWorked: 8,
+  });
+  const [attendanceRange, setAttendanceRange] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const lastDay = String(new Date(y, d.getMonth() + 1, 0).getDate()).padStart(
+      2,
+      "0",
+    );
+    return {
+      startDate: `${y}-${m}-01`,
+      endDate: `${y}-${m}-${lastDay}`,
+    };
+  });
+  const [attendanceReport, setAttendanceReport] = useState([]);
+  const [myAttendance, setMyAttendance] = useState({
+    totals: { presentDays: 0, absentDays: 0, workedHours: 0 },
+    rows: [],
+  });
   const [toasts, setToasts] = useState([]);
   const [modal, setModal] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -294,6 +330,7 @@ function App() {
 
   // Employee dashboard
   const [empTab, setEmpTab] = useState("home"); // home | profile | contracts | settings
+  const [rhTab, setRhTab] = useState("addEmployee"); // addEmployee | absenteeism | attendance
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [contracts, setContracts] = useState([]);
@@ -360,7 +397,7 @@ function App() {
     if (res.ok) {
       const data = await res.json();
       setToken(data.token);
-      setRole(data.role);
+      setRole(String(data.role || "").toLowerCase());
       setName(data.name);
       setEmployeeId(data.employeeId || null);
       setLogin({ email: "", password: "" });
@@ -395,7 +432,7 @@ function App() {
 
     socket.on("employeeUpdated", (employee) => {
       setEmployees((prev) =>
-        prev.map((emp) => (emp.id === employee.id ? employee : emp))
+        prev.map((emp) => (emp.id === employee.id ? employee : emp)),
       );
       if (employeeRecord && employeeRecord.id === employee.id) {
         setEmployeeRecord(employee);
@@ -419,11 +456,15 @@ function App() {
     if (token && role) {
       fetchEmployees();
       fetchLeaves();
+      if (role === "rh" || role === "admin" || role === "manager") {
+        fetchAttendanceReport();
+      }
       if (role === "employee") {
         fetchNotifications();
         fetchContracts();
         fetchAllEmployees();
         fetchLeaveAvailable();
+        fetchMyAttendance();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -433,12 +474,19 @@ function App() {
   useEffect(() => {
     if (!token || !role) return;
 
-    const interval = setInterval(() => {
-      fetchEmployees();
-      if (role === "employee") {
-        fetchAllEmployees();
-      }
-    }, role === "rh" || role === "admin" ? 30000 : 60000);
+    const interval = setInterval(
+      () => {
+        fetchEmployees();
+        if (role === "rh" || role === "admin" || role === "manager") {
+          fetchAttendanceReport();
+        }
+        if (role === "employee") {
+          fetchAllEmployees();
+          fetchMyAttendance();
+        }
+      },
+      role === "rh" || role === "admin" ? 30000 : 60000,
+    );
 
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -484,7 +532,7 @@ function App() {
       headers: {
         Authorization: `Bearer ${token}`,
         "Cache-Control": "no-cache",
-        "Pragma": "no-cache"
+        Pragma: "no-cache",
       },
     });
     if (res.ok) setNotifications(await res.json());
@@ -495,7 +543,7 @@ function App() {
       headers: {
         Authorization: `Bearer ${token}`,
         "Cache-Control": "no-cache",
-        "Pragma": "no-cache"
+        Pragma: "no-cache",
       },
     });
     if (res.ok) setContracts(await res.json());
@@ -507,7 +555,7 @@ function App() {
       headers: {
         Authorization: `Bearer ${token}`,
         "Cache-Control": "no-cache",
-        "Pragma": "no-cache"
+        Pragma: "no-cache",
       },
     });
     if (res.ok) {
@@ -521,7 +569,7 @@ function App() {
       headers: {
         Authorization: `Bearer ${token}`,
         "Cache-Control": "no-cache",
-        "Pragma": "no-cache"
+        Pragma: "no-cache",
       },
     });
     if (res.ok) setAllEmployees(await res.json());
@@ -724,10 +772,80 @@ function App() {
       headers: {
         Authorization: `Bearer ${token}`,
         "Cache-Control": "no-cache",
-        "Pragma": "no-cache"
+        Pragma: "no-cache",
       },
     });
     if (res.ok) setLeaves(await res.json());
+  }
+
+  async function fetchAttendanceReport() {
+    if (!token) return;
+    const params = new URLSearchParams({
+      startDate: attendanceRange.startDate,
+      endDate: attendanceRange.endDate,
+    });
+    const res = await fetch(`${API}/attendance/report?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setAttendanceReport(data.data || []);
+    }
+  }
+
+  async function markAttendance(e) {
+    e.preventDefault();
+    if (!attendanceForm.employeeId || !attendanceForm.date) {
+      pushToast("Sélectionnez un employé et une date", "error");
+      return;
+    }
+    const res = await fetch(`${API}/attendance/mark`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        employeeId: Number(attendanceForm.employeeId),
+        date: attendanceForm.date,
+        status: attendanceForm.status,
+        hoursWorked:
+          attendanceForm.status === "PRESENT"
+            ? Number(attendanceForm.hoursWorked || 8)
+            : 0,
+      }),
+    });
+
+    if (res.ok) {
+      pushToast("Pointage enregistré", "success");
+      fetchAttendanceReport();
+    } else {
+      const err = await res.json();
+      pushToast(err.message || "Erreur lors du pointage", "error");
+    }
+  }
+
+  async function fetchMyAttendance() {
+    if (!token) return;
+    const res = await fetch(`${API}/attendance/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
+    if (res.ok) {
+      setMyAttendance(await res.json());
+    } else {
+      setMyAttendance({
+        totals: { presentDays: 0, absentDays: 0, workedHours: 0 },
+        rows: [],
+      });
+    }
   }
 
   async function requestLeave(e) {
@@ -785,7 +903,11 @@ function App() {
       pushToast("Demande de congé envoyée", "success");
     } else {
       const err = await res.json();
-      pushToast(err.message || "Erreur lors de la demande de congé", "error", 5000);
+      pushToast(
+        err.message || "Erreur lors de la demande de congé",
+        "error",
+        5000,
+      );
     }
   }
 
@@ -1050,6 +1172,26 @@ function App() {
             ))}
           </nav>
         )}
+        {role === "rh" && (
+          <nav className="emp-nav">
+            {[
+              { id: "addEmployee", label: "👤 Ajouter un employé" },
+              { id: "absenteeism", label: "📊 Rapport absentéisme" },
+              { id: "attendance", label: "🕒 Pointage" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                className={`emp-nav-btn${rhTab === tab.id ? " active" : ""}`}
+                onClick={() => {
+                  setRhTab(tab.id);
+                  setMenuOpen(false);
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        )}
         <div className="side-actions">
           {role === "employee" && (
             <button
@@ -1071,6 +1213,9 @@ function App() {
             onClick={() => {
               fetchEmployees();
               fetchLeaves();
+              if (role === "rh" || role === "admin" || role === "manager") {
+                fetchAttendanceReport();
+              }
               setMenuOpen(false);
             }}
           >
@@ -1146,6 +1291,12 @@ function App() {
                       ? "Mes Contrats"
                       : "Paramètres")}
               {role === "manager" && "Gestion du Personnel"}
+              {role === "rh" &&
+                (rhTab === "addEmployee"
+                  ? "RH - Ajouter un employé"
+                  : rhTab === "absenteeism"
+                    ? "RH - Rapport absentéisme"
+                    : "RH - Pointage")}
               {role === "admin" && "Administration RH"}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1238,6 +1389,20 @@ function App() {
                         {leaves.filter((l) => l.status === "pending").length}
                       </div>
                       <div className="emp-stat-label">En attente</div>
+                    </div>
+                    <div className="emp-stat-card">
+                      <div className="emp-stat-icon">🕒</div>
+                      <div className="emp-stat-value">
+                        {myAttendance?.totals?.workedHours || 0}h
+                      </div>
+                      <div className="emp-stat-label">Heures de présence</div>
+                    </div>
+                    <div className="emp-stat-card">
+                      <div className="emp-stat-icon">🚫</div>
+                      <div className="emp-stat-value">
+                        {myAttendance?.totals?.absentDays || 0}
+                      </div>
+                      <div className="emp-stat-label">Jours d'absence</div>
                     </div>
                   </div>
                   {!employeeRecord && (
@@ -1477,6 +1642,60 @@ function App() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  </div>
+                  <div className="card" style={{ marginTop: 16 }}>
+                    <h4 style={{ marginTop: 0 }}>
+                      Mes heures de présence / absence
+                    </h4>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit, minmax(180px, 1fr))",
+                        gap: 10,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div className="stat-chip">
+                        <strong>
+                          {myAttendance?.totals?.presentDays || 0}
+                        </strong>{" "}
+                        jours présents
+                      </div>
+                      <div className="stat-chip">
+                        <strong>{myAttendance?.totals?.absentDays || 0}</strong>{" "}
+                        jours absents
+                      </div>
+                      <div className="stat-chip">
+                        <strong>
+                          {myAttendance?.totals?.workedHours || 0}h
+                        </strong>{" "}
+                        travaillées
+                      </div>
+                    </div>
+                    <div className="leave-list">
+                      {(myAttendance?.rows || []).length === 0 && (
+                        <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                          Aucun pointage enregistré pour le moment.
+                        </div>
+                      )}
+                      {(myAttendance?.rows || []).slice(0, 15).map((row) => (
+                        <div
+                          className="leave-item"
+                          key={`${row.id}-${row.date}`}
+                        >
+                          <div className="leave-item-dates">{row.date}</div>
+                          <div className="leave-item-reason">
+                            {row.status === "PRESENT"
+                              ? "✅ Présent"
+                              : "❌ Absent"}
+                            {row.status === "PRESENT"
+                              ? ` — ${row.hoursWorked || 0}h`
+                              : ""}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -1750,6 +1969,239 @@ function App() {
             </>
           )}
 
+          {/* ════ RH VIEW (TABS) ════ */}
+          {role === "rh" && (
+            <>
+              <div className="emp-tab-bar" style={{ marginTop: 16 }}>
+                {[
+                  { id: "addEmployee", label: "👤 Ajouter un employé" },
+                  { id: "absenteeism", label: "📊 Rapport absentéisme" },
+                  { id: "attendance", label: "🕒 Pointage" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={`emp-tab-btn${rhTab === tab.id ? " active" : ""}`}
+                    onClick={() => setRhTab(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {rhTab === "addEmployee" && (
+                <div className="grid-2" style={{ marginTop: 18 }}>
+                  <div>
+                    <div className="card">
+                      <h3 style={{ marginTop: 0 }}>
+                        {editingId
+                          ? "Modifier l'employé"
+                          : "Ajouter un employé"}
+                      </h3>
+                      <form
+                        onSubmit={(e) =>
+                          editingId
+                            ? handleUpdateEmployee(e)
+                            : handleAddEmployee(e)
+                        }
+                        className="emp-form"
+                      >
+                        <EmployeeFormFields
+                          form={form}
+                          setForm={setForm}
+                          file={file}
+                          setFile={setFile}
+                          previewUrl={previewUrl}
+                          setPreviewUrl={setPreviewUrl}
+                          editingId={editingId}
+                          employees={employees}
+                          cancelEdit={cancelEdit}
+                        />
+                      </form>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="card">
+                      <h3 style={{ marginTop: 0 }}>Employés enregistrés</h3>
+                      <div
+                        className="leave-list"
+                        style={{ maxHeight: 520, overflowY: "auto" }}
+                      >
+                        {employees.length === 0 && (
+                          <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                            Aucun employé enregistré.
+                          </div>
+                        )}
+                        {employees.map((e) => (
+                          <div className="leave-item" key={e.id}>
+                            <div className="leave-item-dates">{e.name}</div>
+                            <div className="leave-item-reason">
+                              {e.position || "—"} | {e.dept || "—"}
+                            </div>
+                            <div
+                              style={{ display: "flex", gap: 8, marginTop: 4 }}
+                            >
+                              <button
+                                className="btn"
+                                onClick={() => handleEditClick(e)}
+                              >
+                                Modifier
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {rhTab === "absenteeism" && (
+                <div className="card" style={{ marginTop: 18 }}>
+                  <h3 style={{ marginTop: 0 }}>Rapport d'absentéisme</h3>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(170px, 1fr))",
+                      gap: 10,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <input
+                      className="input"
+                      type="date"
+                      value={attendanceRange.startDate}
+                      onChange={(e) =>
+                        setAttendanceRange({
+                          ...attendanceRange,
+                          startDate: e.target.value,
+                        })
+                      }
+                    />
+                    <input
+                      className="input"
+                      type="date"
+                      value={attendanceRange.endDate}
+                      onChange={(e) =>
+                        setAttendanceRange({
+                          ...attendanceRange,
+                          endDate: e.target.value,
+                        })
+                      }
+                    />
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={fetchAttendanceReport}
+                    >
+                      Charger le rapport
+                    </button>
+                  </div>
+
+                  <div className="leave-list">
+                    {attendanceReport.length === 0 && (
+                      <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                        Aucun pointage sur cette période.
+                      </div>
+                    )}
+                    {attendanceReport.map((row) => (
+                      <div className="leave-item" key={row.employeeId}>
+                        <div className="leave-item-dates">
+                          {row.employeeName}
+                        </div>
+                        <div className="leave-item-reason">
+                          Présence: <strong>{row.presentDays || 0}</strong> j |
+                          Absence: <strong>{row.absentDays || 0}</strong> j |
+                          Heures: <strong>{row.workedHours || 0}h</strong>
+                        </div>
+                        <div className="leave-status leave-status-pending">
+                          Taux d'absentéisme: {row.absenteeismRate || 0}%
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {rhTab === "attendance" && (
+                <div className="card" style={{ marginTop: 18 }}>
+                  <h3 style={{ marginTop: 0 }}>Pointage de présence</h3>
+                  <form
+                    onSubmit={markAttendance}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(170px, 1fr))",
+                      gap: 10,
+                    }}
+                  >
+                    <select
+                      className="input"
+                      value={attendanceForm.employeeId}
+                      onChange={(e) =>
+                        setAttendanceForm({
+                          ...attendanceForm,
+                          employeeId: e.target.value,
+                        })
+                      }
+                      required
+                    >
+                      <option value="">Employé</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className="input"
+                      type="date"
+                      value={attendanceForm.date}
+                      onChange={(e) =>
+                        setAttendanceForm({
+                          ...attendanceForm,
+                          date: e.target.value,
+                        })
+                      }
+                      required
+                    />
+                    <select
+                      className="input"
+                      value={attendanceForm.status}
+                      onChange={(e) =>
+                        setAttendanceForm({
+                          ...attendanceForm,
+                          status: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="PRESENT">Présent</option>
+                      <option value="ABSENT">Absent</option>
+                    </select>
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      max="24"
+                      step="0.5"
+                      value={attendanceForm.hoursWorked}
+                      onChange={(e) =>
+                        setAttendanceForm({
+                          ...attendanceForm,
+                          hoursWorked: e.target.value,
+                        })
+                      }
+                      disabled={attendanceForm.status !== "PRESENT"}
+                    />
+                    <button className="btn btn-primary" type="submit">
+                      Enregistrer le pointage
+                    </button>
+                  </form>
+                </div>
+              )}
+            </>
+          )}
+
           {/* ════ MANAGER VIEW ════ */}
           {role === "manager" && (
             <div className="grid-2" style={{ marginTop: 18 }}>
@@ -1849,6 +2301,145 @@ function App() {
                 </div>
               </div>
               <div>
+                <div className="card" style={{ marginBottom: 16 }}>
+                  <h3 style={{ marginTop: 0 }}>Pointage de présence (RH)</h3>
+                  <form
+                    onSubmit={markAttendance}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(170px, 1fr))",
+                      gap: 10,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <select
+                      className="input"
+                      value={attendanceForm.employeeId}
+                      onChange={(e) =>
+                        setAttendanceForm({
+                          ...attendanceForm,
+                          employeeId: e.target.value,
+                        })
+                      }
+                      required
+                    >
+                      <option value="">Employé</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className="input"
+                      type="date"
+                      value={attendanceForm.date}
+                      onChange={(e) =>
+                        setAttendanceForm({
+                          ...attendanceForm,
+                          date: e.target.value,
+                        })
+                      }
+                      required
+                    />
+                    <select
+                      className="input"
+                      value={attendanceForm.status}
+                      onChange={(e) =>
+                        setAttendanceForm({
+                          ...attendanceForm,
+                          status: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="PRESENT">Présent</option>
+                      <option value="ABSENT">Absent</option>
+                    </select>
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      max="24"
+                      step="0.5"
+                      value={attendanceForm.hoursWorked}
+                      onChange={(e) =>
+                        setAttendanceForm({
+                          ...attendanceForm,
+                          hoursWorked: e.target.value,
+                        })
+                      }
+                      disabled={attendanceForm.status !== "PRESENT"}
+                    />
+                    <button className="btn btn-primary" type="submit">
+                      Enregistrer le pointage
+                    </button>
+                  </form>
+
+                  <h4 style={{ marginTop: 0 }}>Rapport d'absentéisme</h4>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(170px, 1fr))",
+                      gap: 10,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <input
+                      className="input"
+                      type="date"
+                      value={attendanceRange.startDate}
+                      onChange={(e) =>
+                        setAttendanceRange({
+                          ...attendanceRange,
+                          startDate: e.target.value,
+                        })
+                      }
+                    />
+                    <input
+                      className="input"
+                      type="date"
+                      value={attendanceRange.endDate}
+                      onChange={(e) =>
+                        setAttendanceRange({
+                          ...attendanceRange,
+                          endDate: e.target.value,
+                        })
+                      }
+                    />
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={fetchAttendanceReport}
+                    >
+                      Charger le rapport
+                    </button>
+                  </div>
+
+                  <div className="leave-list">
+                    {attendanceReport.length === 0 && (
+                      <div style={{ color: "var(--muted)", fontSize: 14 }}>
+                        Aucun pointage sur cette période.
+                      </div>
+                    )}
+                    {attendanceReport.map((row) => (
+                      <div className="leave-item" key={row.employeeId}>
+                        <div className="leave-item-dates">
+                          {row.employeeName}
+                        </div>
+                        <div className="leave-item-reason">
+                          Présence: <strong>{row.presentDays || 0}</strong> j |
+                          Absence: <strong>{row.absentDays || 0}</strong> j |
+                          Heures: <strong>{row.workedHours || 0}h</strong>
+                        </div>
+                        <div className="leave-status leave-status-pending">
+                          Taux d'absentéisme: {row.absenteeismRate || 0}%
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 <div className="card">
                   <h3 style={{ marginTop: 0 }}>Demandes de congé</h3>
                   <div className="leave-list">
@@ -2017,13 +2608,15 @@ function App() {
                             >
                               Modifier
                             </button>
-                            <button
-                              className="btn btn-danger"
-                              onClick={() => handleDelete(e.id)}
-                              style={{ marginLeft: 8 }}
-                            >
-                              Supprimer
-                            </button>
+                            {role === "admin" && (
+                              <button
+                                className="btn btn-danger"
+                                onClick={() => handleDelete(e.id)}
+                                style={{ marginLeft: 8 }}
+                              >
+                                Supprimer
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -2153,7 +2746,13 @@ function App() {
                 <h3 style={{ marginTop: 0, color: "var(--primary)" }}>
                   🏖️ Congés annuels
                 </h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gap: 12,
+                  }}
+                >
                   <div
                     style={{
                       padding: 12,
@@ -2180,7 +2779,13 @@ function App() {
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>
                       Utilisés
                     </div>
-                    <div style={{ fontSize: 20, fontWeight: 600, color: "var(--warning)" }}>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        fontWeight: 600,
+                        color: "var(--warning)",
+                      }}
+                    >
                       {leaveAvailable.annualLeaveUsed}
                     </div>
                   </div>
@@ -2195,7 +2800,13 @@ function App() {
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>
                       Disponibles
                     </div>
-                    <div style={{ fontSize: 20, fontWeight: 600, color: "var(--success)" }}>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        fontWeight: 600,
+                        color: "var(--success)",
+                      }}
+                    >
                       {leaveAvailable.annualLeaveAvailable}
                     </div>
                   </div>
@@ -2206,7 +2817,13 @@ function App() {
                 <h3 style={{ marginTop: 0, color: "var(--primary)" }}>
                   📋 Permissions exceptionnelles
                 </h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gap: 12,
+                  }}
+                >
                   <div
                     style={{
                       padding: 12,
@@ -2233,7 +2850,13 @@ function App() {
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>
                       Utilisées
                     </div>
-                    <div style={{ fontSize: 20, fontWeight: 600, color: "var(--warning)" }}>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        fontWeight: 600,
+                        color: "var(--warning)",
+                      }}
+                    >
                       {leaveAvailable.permissionDaysUsed}
                     </div>
                   </div>
@@ -2248,7 +2871,13 @@ function App() {
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>
                       Disponibles
                     </div>
-                    <div style={{ fontSize: 20, fontWeight: 600, color: "var(--success)" }}>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        fontWeight: 600,
+                        color: "var(--success)",
+                      }}
+                    >
                       {leaveAvailable.permissionDaysAvailable}
                     </div>
                   </div>
@@ -2269,22 +2898,37 @@ function App() {
 
       {/* Forgot Password Modal */}
       {showForgotModal && (
-        <div className="modal-overlay" onClick={() => { setShowForgotModal(false); setForgotEmail(""); setTempPassword(""); }}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setShowForgotModal(false);
+            setForgotEmail("");
+            setTempPassword("");
+          }}
+        >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>🔑 Mot de passe oublié</h2>
               <button
                 className="modal-close"
-                onClick={() => { setShowForgotModal(false); setForgotEmail(""); setTempPassword(""); }}
+                onClick={() => {
+                  setShowForgotModal(false);
+                  setForgotEmail("");
+                  setTempPassword("");
+                }}
               >
                 ✕
               </button>
             </div>
             <div className="modal-body">
               {!tempPassword ? (
-                <form onSubmit={handleForgotPassword} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <form
+                  onSubmit={handleForgotPassword}
+                  style={{ display: "flex", flexDirection: "column", gap: 12 }}
+                >
                   <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
-                    Entrez votre adresse email pour recevoir un mot de passe temporaire.
+                    Entrez votre adresse email pour recevoir un mot de passe
+                    temporaire.
                   </p>
                   <div>
                     <label className="form-label">Adresse email</label>
@@ -2303,23 +2947,36 @@ function App() {
                   </button>
                 </form>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center", textAlign: "center" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 16,
+                    alignItems: "center",
+                    textAlign: "center",
+                  }}
+                >
                   <div style={{ fontSize: 36 }}>✅</div>
-                  <p style={{ margin: 0, fontWeight: 600 }}>Mot de passe temporaire :</p>
-                  <div style={{
-                    padding: "12px 24px",
-                    background: "var(--bg-hover)",
-                    borderRadius: 8,
-                    fontFamily: "monospace",
-                    fontSize: 20,
-                    fontWeight: 700,
-                    letterSpacing: 2,
-                    color: "var(--primary)"
-                  }}>
+                  <p style={{ margin: 0, fontWeight: 600 }}>
+                    Mot de passe temporaire :
+                  </p>
+                  <div
+                    style={{
+                      padding: "12px 24px",
+                      background: "var(--bg-hover)",
+                      borderRadius: 8,
+                      fontFamily: "monospace",
+                      fontSize: 20,
+                      fontWeight: 700,
+                      letterSpacing: 2,
+                      color: "var(--primary)",
+                    }}
+                  >
                     {tempPassword}
                   </div>
                   <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
-                    Connectez-vous avec ce mot de passe puis changez-le dans les paramètres.
+                    Connectez-vous avec ce mot de passe puis changez-le dans les
+                    paramètres.
                   </p>
                 </div>
               )}
@@ -2327,7 +2984,11 @@ function App() {
             <div className="modal-footer">
               <button
                 className="btn btn-ghost"
-                onClick={() => { setShowForgotModal(false); setForgotEmail(""); setTempPassword(""); }}
+                onClick={() => {
+                  setShowForgotModal(false);
+                  setForgotEmail("");
+                  setTempPassword("");
+                }}
               >
                 Fermer
               </button>

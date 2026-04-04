@@ -580,6 +580,131 @@ app.get("/api/leaves/my", verifyToken, (req, res) => {
   );
 });
 
+// Attendance: RH/Admin/Manager pointage
+app.post(
+  "/api/attendance/mark",
+  verifyToken,
+  requireRole(["rh", "admin", "manager"]),
+  (req, res) => {
+    const { employeeId, date, status, hoursWorked } = req.body;
+    if (!employeeId || !date || !status) {
+      return res
+        .status(400)
+        .json({ message: "employeeId, date et status requis" });
+    }
+    if (!["PRESENT", "ABSENT"].includes(status)) {
+      return res.status(400).json({ message: "Status invalide" });
+    }
+
+    const safeHours =
+      status === "PRESENT" ? Math.max(0, parseFloat(hoursWorked || 8) || 0) : 0;
+
+    db.run(
+      `INSERT INTO attendance (employeeId, date, status, hoursWorked, markedBy)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(employeeId, date)
+       DO UPDATE SET status = excluded.status,
+                     hoursWorked = excluded.hoursWorked,
+                     markedBy = excluded.markedBy`,
+      [employeeId, date, status, safeHours, req.user.id],
+      function (err) {
+        if (err) return res.status(500).json({ message: "DB error", err });
+        db.get(
+          "SELECT a.*, e.name as employeeName FROM attendance a LEFT JOIN employees e ON e.id = a.employeeId WHERE a.employeeId = ? AND a.date = ?",
+          [employeeId, date],
+          (e2, row) => {
+            if (e2) return res.status(500).json({ message: "DB error", e2 });
+            res.json({ message: "Pointage enregistré", data: row });
+          },
+        );
+      },
+    );
+  },
+);
+
+// Attendance report for RH/Admin/Manager
+app.get(
+  "/api/attendance/report",
+  verifyToken,
+  requireRole(["rh", "admin", "manager"]),
+  (req, res) => {
+    const today = new Date();
+    const defaultStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+    const defaultEnd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()).padStart(2, "0")}`;
+    const startDate = req.query.startDate || defaultStart;
+    const endDate = req.query.endDate || defaultEnd;
+
+    db.all(
+      `SELECT
+         e.id as employeeId,
+         e.name as employeeName,
+         SUM(CASE WHEN a.status = 'PRESENT' THEN 1 ELSE 0 END) as presentDays,
+         SUM(CASE WHEN a.status = 'ABSENT' THEN 1 ELSE 0 END) as absentDays,
+         SUM(CASE WHEN a.status = 'PRESENT' THEN COALESCE(a.hoursWorked, 0) ELSE 0 END) as workedHours,
+         COUNT(a.id) as totalMarkedDays
+       FROM employees e
+       LEFT JOIN attendance a ON a.employeeId = e.id AND a.date BETWEEN ? AND ?
+       GROUP BY e.id, e.name
+       ORDER BY e.name ASC`,
+      [startDate, endDate],
+      (err, rows) => {
+        if (err) return res.status(500).json({ message: "DB error", err });
+        const data = (rows || []).map((r) => {
+          const total = Number(r.totalMarkedDays || 0);
+          const absent = Number(r.absentDays || 0);
+          const absenteeismRate =
+            total > 0 ? Number(((absent / total) * 100).toFixed(2)) : 0;
+          return {
+            ...r,
+            presentDays: Number(r.presentDays || 0),
+            absentDays: absent,
+            workedHours: Number(r.workedHours || 0),
+            totalMarkedDays: total,
+            absenteeismRate,
+          };
+        });
+        res.json({ startDate, endDate, data });
+      },
+    );
+  },
+);
+
+// Employee: own attendance totals + details
+app.get("/api/attendance/me", verifyToken, (req, res) => {
+  db.get(
+    "SELECT id, name FROM employees WHERE userId = ?",
+    [req.user.id],
+    (err, emp) => {
+      if (err) return res.status(500).json({ message: "DB error", err });
+      if (!emp)
+        return res
+          .status(404)
+          .json({ message: "Aucune fiche employé liée à ce compte" });
+
+      db.all(
+        "SELECT * FROM attendance WHERE employeeId = ? ORDER BY date DESC, id DESC",
+        [emp.id],
+        (e2, rows) => {
+          if (e2) return res.status(500).json({ message: "DB error", e2 });
+          const totals = (rows || []).reduce(
+            (acc, row) => {
+              if (row.status === "PRESENT") {
+                acc.presentDays += 1;
+                acc.workedHours += Number(row.hoursWorked || 0);
+              } else {
+                acc.absentDays += 1;
+              }
+              return acc;
+            },
+            { presentDays: 0, absentDays: 0, workedHours: 0 },
+          );
+          res.json({ employee: emp, totals, rows: rows || [] });
+        },
+      );
+    },
+  );
+});
+
 // Helper: send notification to a user
 function createNotification(userId, message, type = "info") {
   if (!userId) return;
