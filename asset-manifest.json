@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/HRSuite_application-gestion/static/css/main.c59abfe7.css",
+    "main.css": "/HRSuite_application-gestion/static/css/main.f75d1c2b.css",
     "main.js": "/HRSuite_application-gestion/static/js/main.3f0eed87.js",
     "static/js/453.825386d9.chunk.js": "/HRSuite_application-gestion/static/js/453.825386d9.chunk.js",
     "index.html": "/HRSuite_application-gestion/index.html",
-    "main.c59abfe7.css.map": "/HRSuite_application-gestion/static/css/main.c59abfe7.css.map",
+    "main.f75d1c2b.css.map": "/HRSuite_application-gestion/static/css/main.f75d1c2b.css.map",
     "main.3f0eed87.js.map": "/HRSuite_application-gestion/static/js/main.3f0eed87.js.map",
     "453.825386d9.chunk.js.map": "/HRSuite_application-gestion/static/js/453.825386d9.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.c59abfe7.css",
+    "static/css/main.f75d1c2b.css",
     "static/js/main.3f0eed87.js"
   ]
 }
