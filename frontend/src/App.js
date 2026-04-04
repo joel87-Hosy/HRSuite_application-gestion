@@ -27,6 +27,29 @@ const LEAVE_TYPES = [
   "Formation",
 ];
 
+const RH_TABS = [
+  {
+    id: "addEmployee",
+    label: "👤 Ajouter un employé",
+    title: "RH - Ajouter un employé",
+  },
+  {
+    id: "absenteeism",
+    label: "📊 Rapport absentéisme",
+    title: "RH - Rapport absentéisme",
+  },
+  {
+    id: "attendance",
+    label: "🕒 Pointage",
+    title: "RH - Pointage",
+  },
+  {
+    id: "employeesList",
+    label: "📋 Liste des employés",
+    title: "RH - Liste des employés",
+  },
+];
+
 // Top-level component so React doesn't remount it on every App re-render
 function EmployeeFormFields({
   form,
@@ -330,7 +353,7 @@ function App() {
 
   // Employee dashboard
   const [empTab, setEmpTab] = useState("home"); // home | profile | contracts | settings
-  const [rhTab, setRhTab] = useState("addEmployee"); // addEmployee | absenteeism | attendance
+  const [rhTab, setRhTab] = useState("addEmployee"); // addEmployee | absenteeism | attendance | employeesList
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [contracts, setContracts] = useState([]);
@@ -588,13 +611,8 @@ function App() {
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const isRhWorkspace = role === "rh" || role === "admin";
-  const rhTabTitles = {
-    addEmployee: "RH - Ajouter un employé",
-    absenteeism: "RH - Rapport absentéisme",
-    attendance: "RH - Pointage",
-    employeesList: "RH - Liste des employés",
-  };
-  const currentRhTitle = rhTabTitles[rhTab] || "RH - Tableau de bord";
+  const currentRhTitle =
+    RH_TABS.find((tab) => tab.id === rhTab)?.title || "RH - Tableau de bord";
 
   function resetForm() {
     setForm({
@@ -1186,13 +1204,9 @@ function App() {
         )}
         {isRhWorkspace && (
           <nav className="emp-nav">
-            {[
-              { id: "addEmployee", label: "👤 Ajouter un employé" },
-              { id: "absenteeism", label: "📊 Rapport absentéisme" },
-              { id: "attendance", label: "🕒 Pointage" },
-              { id: "employeesList", label: "📋 Liste des employés" },
-            ].map((tab) => (
+            {RH_TABS.map((tab) => (
               <button
+                type="button"
                 key={tab.id}
                 className={`emp-nav-btn${rhTab === tab.id ? " active" : ""}`}
                 onClick={() => {
@@ -1980,13 +1994,9 @@ function App() {
           {isRhWorkspace && (
             <>
               <div className="emp-tab-bar" style={{ marginTop: 16 }}>
-                {[
-                  { id: "addEmployee", label: "👤 Ajouter un employé" },
-                  { id: "absenteeism", label: "📊 Rapport absentéisme" },
-                  { id: "attendance", label: "🕒 Pointage" },
-                  { id: "employeesList", label: "📋 Liste des employés" },
-                ].map((tab) => (
+                {RH_TABS.map((tab) => (
                   <button
+                    type="button"
                     key={tab.id}
                     className={`emp-tab-btn${rhTab === tab.id ? " active" : ""}`}
                     onClick={() => setRhTab(tab.id)}
