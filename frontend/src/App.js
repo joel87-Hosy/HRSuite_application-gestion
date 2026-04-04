@@ -396,8 +396,11 @@ function App() {
     });
     if (res.ok) {
       const data = await res.json();
+      const normalizedRole = String(data.role || "")
+        .trim()
+        .toLowerCase();
       setToken(data.token);
-      setRole(String(data.role || "").toLowerCase());
+      setRole(normalizedRole === "hr" ? "rh" : normalizedRole);
       setName(data.name);
       setEmployeeId(data.employeeId || null);
       setLogin({ email: "", password: "" });
@@ -584,6 +587,15 @@ function App() {
   }
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const isRhWorkspace = role === "rh" || role === "admin";
+  const rhTabTitles = {
+    addEmployee: "RH - Ajouter un employé",
+    absenteeism: "RH - Rapport absentéisme",
+    attendance: "RH - Pointage",
+    employeesList: "RH - Liste des employés",
+  };
+  const currentRhTitle = rhTabTitles[rhTab] || "RH - Tableau de bord";
+
   function resetForm() {
     setForm({
       name: "",
@@ -1172,12 +1184,13 @@ function App() {
             ))}
           </nav>
         )}
-        {role === "rh" && (
+        {isRhWorkspace && (
           <nav className="emp-nav">
             {[
               { id: "addEmployee", label: "👤 Ajouter un employé" },
               { id: "absenteeism", label: "📊 Rapport absentéisme" },
               { id: "attendance", label: "🕒 Pointage" },
+              { id: "employeesList", label: "📋 Liste des employés" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1291,13 +1304,7 @@ function App() {
                       ? "Mes Contrats"
                       : "Paramètres")}
               {role === "manager" && "Gestion du Personnel"}
-              {role === "rh" &&
-                (rhTab === "addEmployee"
-                  ? "RH - Ajouter un employé"
-                  : rhTab === "absenteeism"
-                    ? "RH - Rapport absentéisme"
-                    : "RH - Pointage")}
-              {role === "admin" && "Administration RH"}
+              {isRhWorkspace && currentRhTitle}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               {role === "employee" && (
@@ -1970,13 +1977,14 @@ function App() {
           )}
 
           {/* ════ RH VIEW (TABS) ════ */}
-          {role === "rh" && (
+          {isRhWorkspace && (
             <>
               <div className="emp-tab-bar" style={{ marginTop: 16 }}>
                 {[
                   { id: "addEmployee", label: "👤 Ajouter un employé" },
                   { id: "absenteeism", label: "📊 Rapport absentéisme" },
                   { id: "attendance", label: "🕒 Pointage" },
+                  { id: "employeesList", label: "📋 Liste des employés" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -1989,69 +1997,28 @@ function App() {
               </div>
 
               {rhTab === "addEmployee" && (
-                <div className="grid-2" style={{ marginTop: 18 }}>
-                  <div>
-                    <div className="card">
-                      <h3 style={{ marginTop: 0 }}>
-                        {editingId
-                          ? "Modifier l'employé"
-                          : "Ajouter un employé"}
-                      </h3>
-                      <form
-                        onSubmit={(e) =>
-                          editingId
-                            ? handleUpdateEmployee(e)
-                            : handleAddEmployee(e)
-                        }
-                        className="emp-form"
-                      >
-                        <EmployeeFormFields
-                          form={form}
-                          setForm={setForm}
-                          file={file}
-                          setFile={setFile}
-                          previewUrl={previewUrl}
-                          setPreviewUrl={setPreviewUrl}
-                          editingId={editingId}
-                          employees={employees}
-                          cancelEdit={cancelEdit}
-                        />
-                      </form>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="card">
-                      <h3 style={{ marginTop: 0 }}>Employés enregistrés</h3>
-                      <div
-                        className="leave-list"
-                        style={{ maxHeight: 520, overflowY: "auto" }}
-                      >
-                        {employees.length === 0 && (
-                          <div style={{ color: "var(--muted)", fontSize: 14 }}>
-                            Aucun employé enregistré.
-                          </div>
-                        )}
-                        {employees.map((e) => (
-                          <div className="leave-item" key={e.id}>
-                            <div className="leave-item-dates">{e.name}</div>
-                            <div className="leave-item-reason">
-                              {e.position || "—"} | {e.dept || "—"}
-                            </div>
-                            <div
-                              style={{ display: "flex", gap: 8, marginTop: 4 }}
-                            >
-                              <button
-                                className="btn"
-                                onClick={() => handleEditClick(e)}
-                              >
-                                Modifier
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                <div className="card" style={{ marginTop: 18 }}>
+                  <h3 style={{ marginTop: 0 }}>
+                    {editingId ? "Modifier l'employé" : "Ajouter un employé"}
+                  </h3>
+                  <form
+                    onSubmit={(e) =>
+                      editingId ? handleUpdateEmployee(e) : handleAddEmployee(e)
+                    }
+                    className="emp-form"
+                  >
+                    <EmployeeFormFields
+                      form={form}
+                      setForm={setForm}
+                      file={file}
+                      setFile={setFile}
+                      previewUrl={previewUrl}
+                      setPreviewUrl={setPreviewUrl}
+                      editingId={editingId}
+                      employees={employees}
+                      cancelEdit={cancelEdit}
+                    />
+                  </form>
                 </div>
               )}
 
@@ -2197,6 +2164,98 @@ function App() {
                       Enregistrer le pointage
                     </button>
                   </form>
+                </div>
+              )}
+
+              {rhTab === "employeesList" && (
+                <div className="card" style={{ marginTop: 18 }}>
+                  <h3 style={{ marginTop: 0 }}>
+                    Liste des employés enregistrés
+                  </h3>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Photo</th>
+                        <th>Nom</th>
+                        <th>Poste</th>
+                        <th>Département</th>
+                        <th>Salaire</th>
+                        <th>Contrat en vigueur</th>
+                        <th>Email</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {employees.length === 0 && (
+                        <tr>
+                          <td colSpan="8" style={{ color: "var(--muted)" }}>
+                            Aucun employé enregistré.
+                          </td>
+                        </tr>
+                      )}
+                      {employees.map((e) => (
+                        <tr key={e.id}>
+                          <td>
+                            {e.profileImage ? (
+                              <img
+                                src={`${API.replace("/api", "")}${e.profileImage}`}
+                                alt="p"
+                                style={{
+                                  width: 44,
+                                  height: 44,
+                                  objectFit: "cover",
+                                  borderRadius: 8,
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: 44,
+                                  height: 44,
+                                  background: "#f1f5f9",
+                                  borderRadius: 8,
+                                }}
+                              />
+                            )}
+                          </td>
+                          <td>{e.name || "—"}</td>
+                          <td>{e.position || "—"}</td>
+                          <td>{e.dept || "—"}</td>
+                          <td>
+                            {e.salary != null && e.salary !== ""
+                              ? `${Number(e.salary).toLocaleString("fr-FR")} FCFA`
+                              : "—"}
+                          </td>
+                          <td>
+                            <span className="contract-tag">
+                              {e.contractType || "—"}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: 12, color: "var(--muted)" }}>
+                            {e.email || "—"}
+                          </td>
+                          <td>
+                            <button
+                              className="btn"
+                              onClick={() => {
+                                handleEditClick(e);
+                                setRhTab("addEmployee");
+                              }}
+                            >
+                              Modifier
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              onClick={() => handleDelete(e.id)}
+                              style={{ marginLeft: 8 }}
+                            >
+                              Supprimer
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </>
@@ -2519,7 +2578,7 @@ function App() {
           )}
 
           {/* ════ ADMIN VIEW ════ */}
-          {role === "admin" && (
+          {role === "admin" && !isRhWorkspace && (
             <div className="grid-2" style={{ marginTop: 18 }}>
               <div>
                 <div className="card">

@@ -87,7 +87,18 @@ function requireRole(roles = []) {
   return (req, res, next) => {
     const userRole = req.user && req.user.role;
     if (!userRole) return res.status(403).json({ message: "Missing role" });
-    if (!roles.includes(userRole))
+
+    const roleAlias = { hr: "rh" };
+    const normalizedUserRole =
+      roleAlias[String(userRole).trim().toLowerCase()] ||
+      String(userRole).trim().toLowerCase();
+    const normalizedAllowedRoles = (roles || []).map(
+      (r) =>
+        roleAlias[String(r).trim().toLowerCase()] ||
+        String(r).trim().toLowerCase(),
+    );
+
+    if (!normalizedAllowedRoles.includes(normalizedUserRole))
       return res.status(403).json({ message: "Forbidden" });
     next();
   };
@@ -431,7 +442,7 @@ app.put(
 app.delete(
   "/api/employees/:id",
   verifyToken,
-  requireRole(["admin"]),
+  requireRole(["admin", "rh"]),
   (req, res) => {
     const id = req.params.id;
     db.run("DELETE FROM employees WHERE id = ?", [id], function (err) {
